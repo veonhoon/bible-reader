@@ -19,6 +19,8 @@
       "infoPlist": {
         "UIBackgroundModes": [
           "audio",
+          "audio",
+          "audio",
           "audio"
         ],
         "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone",
@@ -32,6 +34,12 @@
       },
       "package": "app.rork.calm_bible_reader",
       "permissions": [
+        "RECORD_AUDIO",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
         "RECORD_AUDIO",
         "android.permission.VIBRATE",
         "android.permission.RECEIVE_BOOT_COMPLETED",
@@ -82,6 +90,12 @@
         "projectId": "9bd32cad-5ea1-4e8c-ad2b-3d9302939bbe"
       }
     },
-    "owner": "deonveon"
+    "owner": "deonveon",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/9bd32cad-5ea1-4e8c-ad2b-3d9302939bbe"
+    }
   }
 }
