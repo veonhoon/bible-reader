@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Calm Bible Reader",
-    "slug": "calm-bible-reader",
+    "name": "Bible Teacher",
+    "slug": "bible-teacher",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.rork.calm-bible-reader",
+      "bundleIdentifier": "app.rork.bible-teacher",
       "infoPlist": {
         "UIBackgroundModes": [
           "audio"
@@ -23,23 +23,6 @@
         "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone",
         "ITSAppUsesNonExemptEncryption": false
       }
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "package": "app.rork.calm_bible_reader",
-      "permissions": [
-        "android.permission.RECORD_AUDIO",
-        "android.permission.VIBRATE",
-        "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.SCHEDULE_EXACT_ALARM",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
-      ]
-    },
-    "web": {
-      "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       [

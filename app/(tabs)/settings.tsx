@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Sun, Moon, BookOpen, ChevronRight, Bell, Info, Crown, Clock, Shield, Database } from 'lucide-react-native';
+import { Sun, Moon, BookOpen, ChevronRight, Bell, Crown, Clock, Shield } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { ThemeMode } from '@/constants/colors';
@@ -179,60 +179,6 @@ export default function SettingsScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-            BIBLE DATA
-          </Text>
-          
-          <View style={[styles.menuContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => router.push('/api-settings')}
-              testID="api-settings"
-            >
-              <View style={styles.menuItemLeft}>
-                <View style={[styles.iconContainer, { backgroundColor: colors.accent + '15' }]}>
-                  <Database color={colors.accent} size={20} />
-                </View>
-                <View>
-                  <Text style={[styles.menuItemTitle, { color: colors.text }]}>
-                    Bible Data
-                  </Text>
-                  <Text style={[styles.menuItemSubtitle, { color: colors.textMuted }]}>
-                    NIV Translation • Manage cache
-                  </Text>
-                </View>
-              </View>
-              <ChevronRight color={colors.textMuted} size={20} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-            ABOUT
-          </Text>
-          
-          <View style={[styles.menuContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <TouchableOpacity style={styles.menuItem} testID="about-app">
-              <View style={styles.menuItemLeft}>
-                <View style={[styles.iconContainer, { backgroundColor: colors.gold + '15' }]}>
-                  <Info color={colors.gold} size={20} />
-                </View>
-                <View>
-                  <Text style={[styles.menuItemTitle, { color: colors.text }]}>
-                    About This App
-                  </Text>
-                  <Text style={[styles.menuItemSubtitle, { color: colors.textMuted }]}>
-                    Version 1.0.0
-                  </Text>
-                </View>
-              </View>
-              <ChevronRight color={colors.textMuted} size={20} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
             ADMIN
           </Text>
           
@@ -270,9 +216,6 @@ export default function SettingsScreen() {
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: colors.textMuted }]}>
             Made with faith and love
-          </Text>
-          <Text style={[styles.versionText, { color: colors.textMuted }]}>
-            NIV Translation
           </Text>
         </View>
       </ScrollView>

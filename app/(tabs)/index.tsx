@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -15,8 +14,6 @@ import { useCustomScriptures } from '@/contexts/CustomScripturesContext';
 import { useAdmin } from '@/contexts/AdminContext';
 import { useReadingProgress } from '@/contexts/ReadingProgressContext';
 import { WEEKLY_SCRIPTURE, SAMPLE_CHAPTERS } from '@/mocks/bibleData';
-
-const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
   const { colors } = useTheme();
@@ -54,9 +51,6 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={[styles.greeting, { color: colors.textSecondary }]}>
-            Peace be with you
-          </Text>
           <Text style={[styles.title, { color: colors.text }]}>
             Daily Scripture
           </Text>
@@ -209,58 +203,6 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ))}
         </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Quick Access
-          </Text>
-          
-          <View style={styles.quickAccessGrid}>
-            <TouchableOpacity
-              style={[styles.quickAccessCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => handleReadScripture('psalms', 23)}
-              testID="quick-psalms-button"
-            >
-              <Text style={[styles.quickAccessTitle, { color: colors.text }]}>Psalm 23</Text>
-              <Text style={[styles.quickAccessSubtitle, { color: colors.textSecondary }]}>
-                The Lord is my shepherd
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.quickAccessCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => handleReadScripture('john', 1)}
-              testID="quick-john-button"
-            >
-              <Text style={[styles.quickAccessTitle, { color: colors.text }]}>John 1</Text>
-              <Text style={[styles.quickAccessSubtitle, { color: colors.textSecondary }]}>
-                In the beginning
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.quickAccessCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => handleReadScripture('genesis', 1)}
-              testID="quick-genesis-button"
-            >
-              <Text style={[styles.quickAccessTitle, { color: colors.text }]}>Genesis 1</Text>
-              <Text style={[styles.quickAccessSubtitle, { color: colors.textSecondary }]}>
-                Creation
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.quickAccessCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => handleReadScripture('matthew', 5)}
-              testID="quick-matthew-button"
-            >
-              <Text style={[styles.quickAccessTitle, { color: colors.text }]}>Matthew 5</Text>
-              <Text style={[styles.quickAccessSubtitle, { color: colors.textSecondary }]}>
-                Beatitudes
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
       </ScrollView>
     </View>
   );
@@ -380,25 +322,6 @@ const styles = StyleSheet.create({
   },
   scriptureVerse: {
     fontSize: 14,
-  },
-  quickAccessGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  quickAccessCard: {
-    width: (width - 52) / 2,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  quickAccessTitle: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    marginBottom: 4,
-  },
-  quickAccessSubtitle: {
-    fontSize: 13,
   },
   continueCard: {
     borderRadius: 16,
