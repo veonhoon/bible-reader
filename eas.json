@@ -12,18 +12,14 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "platform": "ios",
       "ios": {
         "simulator": true
       }
     },
     "preview": {
-      "distribution": "internal",
-      "platform": "ios"
+      "distribution": "internal"
     },
-    "production": {
-      "platform": "ios"
-    }
+    "production": {}
   },
   "submit": {
     "production": {}
