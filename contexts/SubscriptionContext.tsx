@@ -1,6 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '@/config/firebase';
+import { useAuth } from './AuthContext';
 
 const SUBSCRIPTION_STORAGE_KEY = 'bible_app_subscription';
 const TRIAL_STORAGE_KEY = 'bible_app_trial';
@@ -37,6 +40,7 @@ const DEFAULT_NOTIFICATION_PREFS: NotificationPreferences = {
 const TRIAL_DURATION_DAYS = 7;
 
 export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
+  const { user, isAuthenticated } = useAuth();
   const [subscription, setSubscription] = useState<SubscriptionData>({
     status: 'none',
     plan: null,
@@ -52,6 +56,29 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
   );
   const [isLoading, setIsLoading] = useState(true);
   const [showPaywall, setShowPaywall] = useState(false);
+  // Premium status from Firestore (set by admin)
+  const [isPremiumFromFirestore, setIsPremiumFromFirestore] = useState(false);
+
+  // Listen to user's premium status from Firestore in real-time
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id) {
+      setIsPremiumFromFirestore(false);
+      return;
+    }
+
+    const userRef = doc(db, 'users', user.id);
+    const unsubscribe = onSnapshot(userRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        setIsPremiumFromFirestore(data.isPremium === true);
+        console.log('Premium status from Firestore:', data.isPremium);
+      }
+    }, (error) => {
+      console.error('Error listening to premium status:', error);
+    });
+
+    return () => unsubscribe();
+  }, [isAuthenticated, user?.id]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -91,8 +118,11 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
   }, []);
 
   const isSubscribed = useMemo(() => {
-    return subscription.status === 'active' || subscription.status === 'trial';
-  }, [subscription.status]);
+    // User is subscribed if:
+    // 1. They have an active subscription or trial (from RevenueCat/local), OR
+    // 2. They have been granted premium status by admin (from Firestore)
+    return subscription.status === 'active' || subscription.status === 'trial' || isPremiumFromFirestore;
+  }, [subscription.status, isPremiumFromFirestore]);
 
   const isTrialActive = useMemo(() => {
     if (subscription.status !== 'trial' || !trial.expiresAt) return false;
@@ -209,6 +239,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
   return {
     subscription,
     isSubscribed,
+    isPremiumFromFirestore, // Premium granted by admin via Firestore
     isTrialActive,
     trialDaysRemaining,
     hasUsedTrial,

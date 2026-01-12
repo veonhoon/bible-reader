@@ -1,45 +1,58 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { BookOpen, ChevronRight, Clock } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useCustomScriptures } from '@/contexts/CustomScripturesContext';
-import { useAdmin } from '@/contexts/AdminContext';
 import { useReadingProgress } from '@/contexts/ReadingProgressContext';
-import { WEEKLY_SCRIPTURE, SAMPLE_CHAPTERS } from '@/mocks/bibleData';
+import {
+  Scripture,
+  subscribeToFeaturedScripture,
+  subscribeToScriptures,
+} from '@/services/scripturesService';
 
 export default function HomeScreen() {
   const { colors } = useTheme();
-  const { currentScripture, hasScriptures, progress } = useCustomScriptures();
-  const { isAdmin } = useAdmin();
   const { lastRead } = useReadingProgress();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const getWeeklyVerseText = () => {
-    const firstScripture = WEEKLY_SCRIPTURE.scriptures[0];
-    const chapterKey = `${firstScripture.bookId}-${firstScripture.chapter}`;
-    const chapter = SAMPLE_CHAPTERS[chapterKey];
-    if (!chapter) return '';
-    
-    const verses = chapter.verses.filter(
-      v => v.verse >= firstScripture.verseStart && v.verse <= firstScripture.verseEnd
-    );
-    return verses.map(v => v.text).join(' ');
-  };
+  const [featuredScripture, setFeaturedScripture] = useState<Scripture | null>(null);
+  const [weeklyScriptures, setWeeklyScriptures] = useState<Scripture[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Subscribe to featured scripture
+    const unsubscribeFeatured = subscribeToFeaturedScripture((scripture) => {
+      setFeaturedScripture(scripture);
+    });
+
+    // Subscribe to all scriptures for the weekly list
+    const unsubscribeScriptures = subscribeToScriptures((scriptures) => {
+      // Get the most recent scriptures (up to 7 for the week)
+      setWeeklyScriptures(scriptures.slice(0, 7));
+      setIsLoading(false);
+    });
+
+    return () => {
+      unsubscribeFeatured();
+      unsubscribeScriptures();
+    };
+  }, []);
 
   const handleReadScripture = (bookId: string, chapter: number) => {
     router.push(`/reader?bookId=${bookId}&chapter=${chapter}`);
   };
 
-
+  const hasFeaturedContent = featuredScripture !== null;
+  const hasWeeklyScriptures = weeklyScriptures.length > 0;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -50,159 +63,119 @@ export default function HomeScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>
-            Daily Scripture
-          </Text>
-        </View>
-
-        {hasScriptures && currentScripture && (
-          <TouchableOpacity
-            style={[styles.continueCard, { backgroundColor: colors.accent }]}
-            onPress={() => router.push('/daily-scripture')}
-            testID="continue-reading-button"
-          >
-            <View style={styles.continueContent}>
-              <View style={styles.continueTextContainer}>
-                <Text style={styles.continueLabel}>Continue Reading</Text>
-                <Text style={styles.continueScripture} numberOfLines={2}>
-                  {currentScripture.text.substring(0, 80)}...
-                </Text>
-                {currentScripture.reference && (
-                  <Text style={styles.continueReference}>
-                    {currentScripture.reference}
-                  </Text>
-                )}
-              </View>
-              <ChevronRight color="#FFFFFF" size={24} />
-            </View>
-            {progress.completedToday && (
-              <View style={styles.completedBadge}>
-                <Text style={styles.completedText}>✓ Read today</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        )}
-
-        {!hasScriptures && isAdmin && (
-          <TouchableOpacity
-            style={[styles.importPrompt, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => router.push('/admin')}
-            testID="import-prompt-button"
-          >
-            <Text style={[styles.importPromptTitle, { color: colors.text }]}>
-              Import Scriptures
-            </Text>
-            <Text style={[styles.importPromptText, { color: colors.textSecondary }]}>
-              Go to admin panel to add daily scriptures for users
-            </Text>
-            <View style={[styles.importButton, { backgroundColor: colors.accent }]}>
-              <Text style={styles.importButtonText}>Open Admin Panel</Text>
-              <ChevronRight color="#FFFFFF" size={18} />
-            </View>
-          </TouchableOpacity>
-        )}
-
-        {!hasScriptures && !isAdmin && (
-          <View style={[styles.noScripturesCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <BookOpen color={colors.textMuted} size={40} />
-            <Text style={[styles.noScripturesTitle, { color: colors.text }]}>
-              No Daily Scriptures Yet
-            </Text>
-            <Text style={[styles.noScripturesText, { color: colors.textSecondary }]}>
-              Daily scriptures will appear here once they are published. Check back soon!
-            </Text>
-          </View>
-        )}
-
+        {/* Continue where you left off - at the top */}
         {lastRead && (
           <TouchableOpacity
-            style={[styles.continueReadingCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            style={[styles.continueCard, { backgroundColor: colors.accent }]}
             onPress={() => router.push(`/reader?bookId=${lastRead.bookId}&chapter=${lastRead.chapter}`)}
             activeOpacity={0.7}
             testID="continue-where-left-off-button"
           >
-            <View style={styles.continueReadingHeader}>
-              <View style={[styles.continueReadingIcon, { backgroundColor: colors.accent + '15' }]}>
-                <Clock color={colors.accent} size={20} />
+            <View style={styles.continueContent}>
+              <View style={[styles.continueIcon, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                <Clock color="#FFFFFF" size={24} />
               </View>
-              <View style={styles.continueReadingInfo}>
-                <Text style={[styles.continueReadingLabel, { color: colors.textSecondary }]}>
-                  Continue where you left off
-                </Text>
-                <Text style={[styles.continueReadingTitle, { color: colors.text }]}>
+              <View style={styles.continueTextContainer}>
+                <Text style={styles.continueLabel}>Continue where you left off</Text>
+                <Text style={styles.continueTitle}>
                   {lastRead.bookName} {lastRead.chapter}
                 </Text>
               </View>
-              <ChevronRight color={colors.textMuted} size={22} />
+              <ChevronRight color="#FFFFFF" size={24} />
             </View>
           </TouchableOpacity>
         )}
 
-        <View style={[styles.weeklyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.weeklyHeader}>
-            <View style={[styles.weeklyBadge, { backgroundColor: colors.gold + '20' }]}>
-              <Text style={[styles.weeklyBadgeText, { color: colors.gold }]}>
-                THIS WEEK
-              </Text>
-            </View>
-          </View>
-          
-          <Text style={[styles.weeklyTitle, { color: colors.text }]}>
-            {WEEKLY_SCRIPTURE.title}
-          </Text>
-          
-          <Text style={[styles.weeklyDescription, { color: colors.textSecondary }]}>
-            {WEEKLY_SCRIPTURE.description}
-          </Text>
-
-          <View style={[styles.versePreview, { backgroundColor: colors.surfaceSecondary }]}>
-            <Text style={[styles.verseReference, { color: colors.accent }]}>
-              {WEEKLY_SCRIPTURE.scriptures[0].bookName} {WEEKLY_SCRIPTURE.scriptures[0].chapter}:
-              {WEEKLY_SCRIPTURE.scriptures[0].verseStart}-{WEEKLY_SCRIPTURE.scriptures[0].verseEnd}
-            </Text>
-            <Text style={[styles.verseText, { color: colors.text }]}>
-              {`"${getWeeklyVerseText()}"`}
+        {isLoading && (
+          <View style={[styles.loadingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <ActivityIndicator size="large" color={colors.accent} />
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+              Loading scriptures...
             </Text>
           </View>
+        )}
 
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: colors.accent }]}
-            onPress={() => handleReadScripture(
-              WEEKLY_SCRIPTURE.scriptures[0].bookId,
-              WEEKLY_SCRIPTURE.scriptures[0].chapter
-            )}
-            testID="read-weekly-button"
-          >
-            <BookOpen color="#FFFFFF" size={18} />
-            <Text style={styles.actionButtonText}>Read Scripture</Text>
-          </TouchableOpacity>
-        </View>
+        {!hasFeaturedContent && !hasWeeklyScriptures && !isLoading && (
+          <View style={[styles.noScripturesCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <BookOpen color={colors.textMuted} size={40} />
+            <Text style={[styles.noScripturesTitle, { color: colors.text }]}>
+              No Scriptures Yet
+            </Text>
+            <Text style={[styles.noScripturesText, { color: colors.textSecondary }]}>
+              Scriptures will appear here once they are published. Check back soon!
+            </Text>
+          </View>
+        )}
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            This Week&apos;s Scriptures
-          </Text>
-          
-          {WEEKLY_SCRIPTURE.scriptures.map((scripture, index) => (
-            <TouchableOpacity
-              key={index}
-              style={[styles.scriptureItem, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => handleReadScripture(scripture.bookId, scripture.chapter)}
-              testID={`scripture-item-${index}`}
-            >
-              <View style={styles.scriptureInfo}>
-                <Text style={[styles.scriptureName, { color: colors.text }]}>
-                  {scripture.bookName} {scripture.chapter}
-                </Text>
-                <Text style={[styles.scriptureVerse, { color: colors.textSecondary }]}>
-                  Verses {scripture.verseStart}-{scripture.verseEnd}
+        {hasFeaturedContent && featuredScripture && (
+          <View style={[styles.weeklyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.weeklyHeader}>
+              <View style={[styles.weeklyBadge, { backgroundColor: colors.gold + '20' }]}>
+                <Text style={[styles.weeklyBadgeText, { color: colors.gold }]}>
+                  FEATURED
                 </Text>
               </View>
-              <ChevronRight color={colors.textMuted} size={20} />
+            </View>
+
+            <Text style={[styles.weeklyTitle, { color: colors.text }]}>
+              {featuredScripture.verse}
+            </Text>
+
+            {featuredScripture.message && (
+              <Text style={[styles.weeklyDescription, { color: colors.textSecondary }]}>
+                {featuredScripture.message}
+              </Text>
+            )}
+
+            <View style={[styles.versePreview, { backgroundColor: colors.surfaceSecondary }]}>
+              <Text style={[styles.verseReference, { color: colors.accent }]}>
+                {featuredScripture.verse}
+              </Text>
+              <Text style={[styles.verseText, { color: colors.text }]}>
+                {`"${featuredScripture.text}"`}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: colors.accent }]}
+              onPress={() => handleReadScripture(
+                featuredScripture.bookId,
+                featuredScripture.chapter
+              )}
+              testID="read-featured-button"
+            >
+              <BookOpen color="#FFFFFF" size={18} />
+              <Text style={styles.actionButtonText}>Read Scripture</Text>
             </TouchableOpacity>
-          ))}
-        </View>
+          </View>
+        )}
+
+        {hasWeeklyScriptures && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              This Week's Scriptures
+            </Text>
+
+            {weeklyScriptures.map((scripture, index) => (
+              <TouchableOpacity
+                key={scripture.id || index}
+                style={[styles.scriptureItem, { backgroundColor: colors.card, borderColor: colors.border }]}
+                onPress={() => handleReadScripture(scripture.bookId, scripture.chapter)}
+                testID={`scripture-item-${index}`}
+              >
+                <View style={styles.scriptureInfo}>
+                  <Text style={[styles.scriptureName, { color: colors.text }]}>
+                    {scripture.verse}
+                  </Text>
+                  <Text style={[styles.scriptureVerse, { color: colors.textSecondary }]} numberOfLines={1}>
+                    {scripture.text.substring(0, 50)}...
+                  </Text>
+                </View>
+                <ChevronRight color={colors.textMuted} size={20} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -215,19 +188,16 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
   },
-  header: {
+  loadingCard: {
+    borderRadius: 16,
+    padding: 32,
     marginBottom: 24,
+    borderWidth: 1,
+    alignItems: 'center',
+    gap: 16,
   },
-  greeting: {
-    fontSize: 14,
-    fontWeight: '500' as const,
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700' as const,
-    letterSpacing: -0.5,
+  loadingText: {
+    fontSize: 15,
   },
   weeklyCard: {
     borderRadius: 16,
@@ -336,7 +306,14 @@ const styles = StyleSheet.create({
   continueContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+  },
+  continueIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
   },
   continueTextContainer: {
     flex: 1,
@@ -344,68 +321,15 @@ const styles = StyleSheet.create({
   },
   continueLabel: {
     fontSize: 13,
-    fontWeight: '700' as const,
+    fontWeight: '600' as const,
     color: '#FFFFFF',
-    letterSpacing: 0.5,
-    marginBottom: 8,
     opacity: 0.9,
+    marginBottom: 4,
   },
-  continueScripture: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#FFFFFF',
-    fontFamily: 'Georgia',
-    marginBottom: 6,
-  },
-  continueReference: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    color: '#FFFFFF',
-    opacity: 0.85,
-  },
-  completedBadge: {
-    marginTop: 12,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-  },
-  completedText: {
-    fontSize: 12,
-    fontWeight: '600' as const,
-    color: '#FFFFFF',
-  },
-  importPrompt: {
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-  },
-  importPromptTitle: {
-    fontSize: 20,
+  continueTitle: {
+    fontSize: 18,
     fontWeight: '700' as const,
-    marginBottom: 8,
-  },
-  importPromptText: {
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 16,
-  },
-  importButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    gap: 8,
-  },
-  importButtonText: {
     color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600' as const,
   },
   noScripturesCard: {
     borderRadius: 16,
@@ -425,35 +349,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     textAlign: 'center',
-  },
-  continueReadingCard: {
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-  },
-  continueReadingHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  continueReadingIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
-  },
-  continueReadingInfo: {
-    flex: 1,
-  },
-  continueReadingLabel: {
-    fontSize: 13,
-    fontWeight: '500' as const,
-    marginBottom: 2,
-  },
-  continueReadingTitle: {
-    fontSize: 17,
-    fontWeight: '600' as const,
   },
 });

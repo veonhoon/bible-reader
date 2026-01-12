@@ -12,6 +12,7 @@ import { CustomScripturesProvider, useCustomScriptures } from "@/contexts/Custom
 import { AdminProvider, useAdmin } from "@/contexts/AdminContext";
 import { BibleProvider } from "@/contexts/BibleContext";
 import { ReadingProgressProvider, useReadingProgress } from "@/contexts/ReadingProgressContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import * as Notifications from 'expo-notifications';
 import Paywall from "@/components/Paywall";
 
@@ -114,12 +115,19 @@ function RootLayoutNav() {
             presentation: 'card',
           }} 
         />
-        <Stack.Screen 
-          name="api-settings" 
-          options={{ 
+        <Stack.Screen
+          name="api-settings"
+          options={{
             headerShown: false,
             presentation: 'card',
-          }} 
+          }}
+        />
+        <Stack.Screen
+          name="login"
+          options={{
+            headerShown: false,
+            presentation: 'card',
+          }}
         />
       </Stack>
       <Paywall visible={showPaywall} onClose={closePaywall} />
@@ -132,19 +140,21 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <ThemeProvider>
-          <SubscriptionProvider>
-            <AdminProvider>
-              <BibleProvider>
-                <CustomScripturesProvider>
+          <AuthProvider>
+            <SubscriptionProvider>
+              <AdminProvider>
+                <BibleProvider>
+                  <CustomScripturesProvider>
                     <ReadingProgressProvider>
                       <BookmarksProvider>
                         <RootLayoutNav />
                       </BookmarksProvider>
                     </ReadingProgressProvider>
                   </CustomScripturesProvider>
-              </BibleProvider>
-            </AdminProvider>
-          </SubscriptionProvider>
+                </BibleProvider>
+              </AdminProvider>
+            </SubscriptionProvider>
+          </AuthProvider>
         </ThemeProvider>
       </GestureHandlerRootView>
     </QueryClientProvider>

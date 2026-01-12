@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Home, BookOpen, Bookmark, Settings } from "lucide-react-native";
+import { Home, BookOpen, Settings } from "lucide-react-native";
 import React from "react";
 import { useTheme } from "@/contexts/ThemeContext";
 
@@ -15,6 +15,16 @@ export default function TabLayout() {
           backgroundColor: colors.tabBar,
           borderTopColor: colors.tabBarBorder,
           borderTopWidth: 1,
+          height: 85,
+          paddingBottom: 20,
+          paddingTop: 10,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '500',
+        },
+        tabBarIconStyle: {
+          marginBottom: 2,
         },
         headerShown: false,
       }}
@@ -33,19 +43,18 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => <BookOpen color={color} size={size} />,
         }}
       />
-
-      <Tabs.Screen
-        name="bookmarks"
-        options={{
-          title: "Saved",
-          tabBarIcon: ({ color, size }) => <Bookmark color={color} size={size} />,
-        }}
-      />
       <Tabs.Screen
         name="settings"
         options={{
           title: "Settings",
           tabBarIcon: ({ color, size }) => <Settings color={color} size={size} />,
+        }}
+      />
+      {/* Hide bookmarks from tab bar - accessible from settings */}
+      <Tabs.Screen
+        name="bookmarks"
+        options={{
+          href: null,
         }}
       />
     </Tabs>

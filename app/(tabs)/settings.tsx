@@ -8,12 +8,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Sun, Moon, BookOpen, ChevronRight, Bell, Crown, Clock, Shield } from 'lucide-react-native';
+import { Sun, Moon, BookOpen, ChevronRight, Bell, Crown, Clock, User, LogOut, Mail, Bookmark, Heart } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { ThemeMode } from '@/constants/colors';
-import { useAdmin } from '@/contexts/AdminContext';
-
 
 const THEME_OPTIONS: { mode: ThemeMode; label: string; icon: typeof Sun }[] = [
   { mode: 'light', label: 'Light', icon: Sun },
@@ -27,12 +26,13 @@ export default function SettingsScreen() {
   const router = useRouter();
   const {
     isSubscribed,
+    isPremiumFromFirestore,
     isTrialActive,
     trialDaysRemaining,
     subscription,
     openPaywall,
   } = useSubscription();
-  const { isAdmin } = useAdmin();
+  const { user, isAuthenticated, logout } = useAuth();
 
   const handleNotificationsPress = () => {
     if (isSubscribed) {
@@ -42,17 +42,25 @@ export default function SettingsScreen() {
     }
   };
 
-  const getSubscriptionStatusText = () => {
-    if (isTrialActive) {
-      return `${trialDaysRemaining} days left in trial`;
+  const handleSavedPress = () => {
+    router.push('/(tabs)/bookmarks');
+  };
+
+  const handleLoginPress = () => {
+    router.push('/login');
+  };
+
+  const handleLogout = async () => {
+    await logout();
+  };
+
+  const getProviderLabel = (provider: string) => {
+    switch (provider) {
+      case 'google': return 'Google';
+      case 'apple': return 'Apple';
+      case 'email': return 'Email';
+      default: return provider;
     }
-    if (subscription.status === 'active') {
-      return subscription.plan === 'annual' ? 'Annual subscriber' : 'Monthly subscriber';
-    }
-    if (subscription.status === 'expired' || subscription.status === 'cancelled') {
-      return 'Subscription ended';
-    }
-    return 'Free features active';
   };
 
   return (
@@ -66,57 +74,17 @@ export default function SettingsScreen() {
       >
         <Text style={[styles.title, { color: colors.text }]}>Settings</Text>
 
-        {isSubscribed && (
-          <View style={[styles.subscriptionCard, { backgroundColor: colors.accent + '10', borderColor: colors.accent + '25' }]}>
-            <View style={styles.subscriptionHeader}>
-              <View style={[styles.crownIcon, { backgroundColor: colors.gold + '20' }]}>
-                {isTrialActive ? (
-                  <Clock color={colors.gold} size={20} />
-                ) : (
-                  <Crown color={colors.gold} size={20} />
-                )}
-              </View>
-              <View style={styles.subscriptionInfo}>
-                <Text style={[styles.subscriptionTitle, { color: colors.text }]}>
-                  {isTrialActive ? 'Free Trial Active' : 'Reminder Access'}
-                </Text>
-                <Text style={[styles.subscriptionSubtitle, { color: colors.textSecondary }]}>
-                  {getSubscriptionStatusText()}
-                </Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {!isSubscribed && (
-          <TouchableOpacity
-            style={[styles.upgradeCard, { backgroundColor: colors.accent }]}
-            onPress={openPaywall}
-            testID="upgrade-button"
-          >
-            <View style={styles.upgradeContent}>
-              <Bell color="#FFFFFF" size={22} />
-              <View style={styles.upgradeTextContainer}>
-                <Text style={styles.upgradeTitle}>Enable Reminders</Text>
-                <Text style={styles.upgradeSubtitle}>
-                  Get weekly scriptures delivered to you
-                </Text>
-              </View>
-            </View>
-            <ChevronRight color="#FFFFFF" size={20} />
-          </TouchableOpacity>
-        )}
-
+        {/* 1. Reading Mode - at the top */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
             READING MODE
           </Text>
-          
+
           <View style={[styles.themeContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {THEME_OPTIONS.map((option) => {
               const Icon = option.icon;
               const isActive = mode === option.mode;
-              
+
               return (
                 <TouchableOpacity
                   key={option.mode}
@@ -148,11 +116,34 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* 2. Saved Scriptures and Highlights */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-            REMINDERS
-          </Text>
-          
+          <View style={[styles.menuContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={handleSavedPress}
+              testID="saved-scriptures"
+            >
+              <View style={styles.menuItemLeft}>
+                <View style={[styles.iconContainer, { backgroundColor: colors.gold + '15' }]}>
+                  <Bookmark color={colors.gold} size={20} />
+                </View>
+                <View>
+                  <Text style={[styles.menuItemTitle, { color: colors.text }]}>
+                    Saved Scriptures & Highlights
+                  </Text>
+                  <Text style={[styles.menuItemSubtitle, { color: colors.textMuted }]}>
+                    View your bookmarks and highlights
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight color={colors.textMuted} size={20} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* 3. Enable Reminders and Push Notifications */}
+        <View style={styles.section}>
           <View style={[styles.menuContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <TouchableOpacity
               style={styles.menuItem}
@@ -165,10 +156,10 @@ export default function SettingsScreen() {
                 </View>
                 <View>
                   <Text style={[styles.menuItemTitle, { color: colors.text }]}>
-                    Push Notifications
+                    Reminders & Notifications
                   </Text>
                   <Text style={[styles.menuItemSubtitle, { color: colors.textMuted }]}>
-                    {isSubscribed ? 'Manage your reminders' : 'Start free trial'}
+                    {isSubscribed ? 'Manage your reminders' : 'Enable push notifications'}
                   </Text>
                 </View>
               </View>
@@ -177,35 +168,7 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-            ADMIN
-          </Text>
-          
-          <View style={[styles.menuContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <TouchableOpacity 
-              style={styles.menuItem} 
-              onPress={() => router.push('/admin')}
-              testID="admin-panel"
-            >
-              <View style={styles.menuItemLeft}>
-                <View style={[styles.iconContainer, { backgroundColor: isAdmin ? colors.accent + '15' : colors.textMuted + '15' }]}>
-                  <Shield color={isAdmin ? colors.accent : colors.textMuted} size={20} />
-                </View>
-                <View>
-                  <Text style={[styles.menuItemTitle, { color: colors.text }]}>
-                    Admin Panel
-                  </Text>
-                  <Text style={[styles.menuItemSubtitle, { color: colors.textMuted }]}>
-                    {isAdmin ? 'Manage scriptures & notifications' : 'Admin login required'}
-                  </Text>
-                </View>
-              </View>
-              <ChevronRight color={colors.textMuted} size={20} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
+        {/* 4. Reading is always free */}
         <View style={[styles.freeNotice, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
           <BookOpen color={colors.textMuted} size={18} />
           <Text style={[styles.freeNoticeText, { color: colors.textSecondary }]}>
@@ -213,10 +176,80 @@ export default function SettingsScreen() {
           </Text>
         </View>
 
-        <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: colors.textMuted }]}>
+        {/* 5. Made with faith and love */}
+        <View style={styles.madeWithLove}>
+          <Heart color={colors.textMuted} size={16} fill={colors.textMuted} />
+          <Text style={[styles.madeWithLoveText, { color: colors.textMuted }]}>
             Made with faith and love
           </Text>
+        </View>
+
+        {/* 6. Account Section - at the bottom */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
+            ACCOUNT
+          </Text>
+
+          {isAuthenticated && user ? (
+            <View style={[styles.accountCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.accountHeader}>
+                <View style={[styles.avatarContainer, { backgroundColor: colors.accent }]}>
+                  <Text style={styles.avatarText}>
+                    {user.displayName?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || 'U'}
+                  </Text>
+                </View>
+                <View style={styles.accountInfo}>
+                  <Text style={[styles.accountName, { color: colors.text }]}>
+                    {user.displayName || 'User'}
+                  </Text>
+                  <View style={styles.accountEmailRow}>
+                    <Mail color={colors.textMuted} size={14} />
+                    <Text style={[styles.accountEmail, { color: colors.textSecondary }]}>
+                      {user.email}
+                    </Text>
+                  </View>
+                  <View style={[styles.providerBadge, { backgroundColor: colors.accent + '15' }]}>
+                    <Text style={[styles.providerText, { color: colors.accent }]}>
+                      {getProviderLabel(user.provider)}
+                    </Text>
+                    {user.isPremium && (
+                      <View style={[styles.premiumBadge, { backgroundColor: colors.gold }]}>
+                        <Crown color="#FFFFFF" size={10} />
+                        <Text style={styles.premiumText}>Premium</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={[styles.logoutButton, { borderColor: colors.border }]}
+                onPress={handleLogout}
+              >
+                <LogOut color={colors.error} size={18} />
+                <Text style={[styles.logoutText, { color: colors.error }]}>Sign Out</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[styles.signInCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={handleLoginPress}
+            >
+              <View style={styles.signInContent}>
+                <View style={[styles.signInIconContainer, { backgroundColor: colors.accent + '15' }]}>
+                  <User color={colors.accent} size={24} />
+                </View>
+                <View style={styles.signInTextContainer}>
+                  <Text style={[styles.signInTitle, { color: colors.text }]}>
+                    Sign In
+                  </Text>
+                  <Text style={[styles.signInSubtitle, { color: colors.textSecondary }]}>
+                    Sync your progress across devices
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight color={colors.textMuted} size={20} />
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -236,64 +269,8 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     marginBottom: 20,
   },
-  subscriptionCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 24,
-  },
-  subscriptionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  crownIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  subscriptionInfo: {
-    flex: 1,
-  },
-  subscriptionTitle: {
-    fontSize: 17,
-    fontWeight: '600' as const,
-    marginBottom: 2,
-  },
-  subscriptionSubtitle: {
-    fontSize: 14,
-  },
-  upgradeCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 24,
-  },
-  upgradeContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    flex: 1,
-  },
-  upgradeTextContainer: {
-    flex: 1,
-  },
-  upgradeTitle: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '600' as const,
-    marginBottom: 2,
-  },
-  upgradeSubtitle: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 14,
-  },
   section: {
-    marginBottom: 28,
+    marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 12,
@@ -341,6 +318,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    flex: 1,
   },
   iconContainer: {
     width: 40,
@@ -371,16 +349,124 @@ const styles = StyleSheet.create({
     fontSize: 14,
     flex: 1,
   },
-  footer: {
+  madeWithLove: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
-    paddingTop: 20,
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 32,
   },
-  footerText: {
+  madeWithLoveText: {
     fontSize: 14,
+  },
+  accountCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+  },
+  accountHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginBottom: 16,
+  },
+  avatarContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '600',
+  },
+  accountInfo: {
+    flex: 1,
+  },
+  accountName: {
+    fontSize: 18,
+    fontWeight: '600',
     marginBottom: 4,
   },
-  versionText: {
+  accountEmailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  accountEmail: {
+    fontSize: 14,
+  },
+  providerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 8,
+  },
+  providerText: {
     fontSize: 12,
+    fontWeight: '500',
+  },
+  premiumBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    gap: 4,
+  },
+  premiumText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    gap: 8,
+  },
+  logoutText: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  signInCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+  },
+  signInContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    flex: 1,
+  },
+  signInIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  signInTextContainer: {
+    flex: 1,
+  },
+  signInTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  signInSubtitle: {
+    fontSize: 14,
   },
 });
