@@ -13,7 +13,7 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, Timestamp } from 'firebase/firestore';
-import { auth, db } from '@/config/firebase';
+import { auth, db, isFirebaseConfigured } from '@/config/firebase';
 import { Platform } from 'react-native';
 
 // Conditionally import native modules to support Expo Go
@@ -57,10 +57,23 @@ const saveUserToFirestore = async (
   provider: 'google' | 'apple' | 'email',
   displayName?: string
 ): Promise<AppUser> => {
+  const now = new Date();
+
+  // If Firestore is not available, return a basic user object
+  if (!isFirebaseConfigured || !db) {
+    return {
+      id: firebaseUser.uid,
+      email: firebaseUser.email || '',
+      displayName: displayName || firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+      provider,
+      isPremium: false,
+      createdAt: now,
+      lastLogin: now,
+    };
+  }
+
   const userRef = doc(db, 'users', firebaseUser.uid);
   const userDoc = await getDoc(userRef);
-
-  const now = new Date();
 
   if (userDoc.exists()) {
     // Update last login
@@ -100,35 +113,49 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Google Auth setup - only if the module is available
-  const googleAuthResult = Google?.useAuthRequest?.({
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-  });
+  // Google Auth setup - only if the module is available AND credentials are configured
+  const hasGoogleCredentials = Boolean(
+    process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ||
+    process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
+  );
+  const googleAuthResult = hasGoogleCredentials && Google?.useAuthRequest
+    ? Google.useAuthRequest({
+        iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+        webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+      })
+    : null;
   const googleResponse = googleAuthResult?.[1];
   const promptGoogleAsync = googleAuthResult?.[2];
 
   // Listen to Firebase auth state changes
   useEffect(() => {
+    // If Firebase is not configured, just set loading to false
+    if (!isFirebaseConfigured || !auth) {
+      setIsLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         // User is signed in - fetch user data from Firestore
         try {
-          const userRef = doc(db, 'users', firebaseUser.uid);
-          const userDoc = await getDoc(userRef);
-          if (userDoc.exists()) {
-            const data = userDoc.data();
-            const appUser: AppUser = {
-              id: firebaseUser.uid,
-              email: data.email,
-              displayName: data.displayName,
-              provider: data.provider,
-              isPremium: data.isPremium || false,
-              createdAt: data.createdAt?.toDate() || new Date(),
-              lastLogin: data.lastLogin?.toDate() || new Date(),
-            };
-            setUser(appUser);
-            await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(appUser));
+          if (db) {
+            const userRef = doc(db, 'users', firebaseUser.uid);
+            const userDoc = await getDoc(userRef);
+            if (userDoc.exists()) {
+              const data = userDoc.data();
+              const appUser: AppUser = {
+                id: firebaseUser.uid,
+                email: data.email,
+                displayName: data.displayName,
+                provider: data.provider,
+                isPremium: data.isPremium || false,
+                createdAt: data.createdAt?.toDate() || new Date(),
+                lastLogin: data.lastLogin?.toDate() || new Date(),
+              };
+              setUser(appUser);
+              await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(appUser));
+            }
           }
         } catch (err) {
           console.error('Error fetching user data:', err);
@@ -145,7 +172,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   // Handle Google auth response
   useEffect(() => {
-    if (googleResponse?.type === 'success') {
+    if (googleResponse?.type === 'success' && auth) {
       const { id_token } = googleResponse.params;
       const credential = GoogleAuthProvider.credential(id_token);
       signInWithCredential(auth, credential)
@@ -161,6 +188,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   // Sign in with Google
   const signInWithGoogle = useCallback(async () => {
     setError(null);
+    if (!isFirebaseConfigured || !auth) {
+      setError('Firebase is not configured. Please set up your .env file with Firebase credentials.');
+      return;
+    }
     if (!promptGoogleAsync) {
       setError('Google Sign-In requires a development build. Please build the app with expo-dev-client.');
       return;
@@ -175,6 +206,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   // Sign in with Apple
   const signInWithApple = useCallback(async () => {
     setError(null);
+    if (!isFirebaseConfigured || !auth) {
+      setError('Firebase is not configured. Please set up your .env file with Firebase credentials.');
+      return;
+    }
     if (!Crypto || !AppleAuthentication) {
       setError('Apple Sign-In requires a development build. Please build the app with expo-dev-client.');
       return;
@@ -223,6 +258,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   // Sign in with Email/Password
   const signInWithEmail = useCallback(async (email: string, password: string) => {
     setError(null);
+    if (!isFirebaseConfigured || !auth) {
+      setError('Firebase is not configured. Please set up your .env file with Firebase credentials.');
+      throw new Error('Firebase not configured');
+    }
     try {
       const result = await signInWithEmailAndPassword(auth, email, password);
       await saveUserToFirestore(result.user, 'email');
@@ -241,6 +280,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   // Sign up with Email/Password
   const signUpWithEmail = useCallback(async (email: string, password: string, displayName: string) => {
     setError(null);
+    if (!isFirebaseConfigured || !auth) {
+      setError('Firebase is not configured. Please set up your .env file with Firebase credentials.');
+      throw new Error('Firebase not configured');
+    }
     try {
       const result = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(result.user, { displayName });
@@ -262,7 +305,9 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   // Sign out
   const logout = useCallback(async () => {
     try {
-      await signOut(auth);
+      if (auth) {
+        await signOut(auth);
+      }
       setUser(null);
       await AsyncStorage.removeItem(USER_STORAGE_KEY);
     } catch (err: any) {

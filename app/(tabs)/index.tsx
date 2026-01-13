@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,17 +6,23 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { BookOpen, ChevronRight, Clock } from 'lucide-react-native';
+import { BookOpen, ChevronRight, Clock, Bell, BellOff } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useReadingProgress } from '@/contexts/ReadingProgressContext';
 import {
-  Scripture,
-  subscribeToFeaturedScripture,
-  subscribeToScriptures,
-} from '@/services/scripturesService';
+  WeeklyContent,
+  Snippet,
+  subscribeToLatestWeeklyContent,
+} from '@/services/weeklyContentService';
+import {
+  areNotificationsEnabled,
+  setNotificationsEnabled,
+  scheduleSnippetNotifications,
+} from '@/services/notificationScheduler';
 
 export default function HomeScreen() {
   const { colors } = useTheme();
@@ -24,35 +30,45 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const [featuredScripture, setFeaturedScripture] = useState<Scripture | null>(null);
-  const [weeklyScriptures, setWeeklyScriptures] = useState<Scripture[]>([]);
+  const [content, setContent] = useState<WeeklyContent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [notificationsOn, setNotificationsOn] = useState(false);
+  const [isTogglingNotifications, setIsTogglingNotifications] = useState(false);
 
+  // Load content and notification settings
   useEffect(() => {
-    // Subscribe to featured scripture
-    const unsubscribeFeatured = subscribeToFeaturedScripture((scripture) => {
-      setFeaturedScripture(scripture);
-    });
-
-    // Subscribe to all scriptures for the weekly list
-    const unsubscribeScriptures = subscribeToScriptures((scriptures) => {
-      // Get the most recent scriptures (up to 7 for the week)
-      setWeeklyScriptures(scriptures.slice(0, 7));
+    const unsubscribe = subscribeToLatestWeeklyContent((data) => {
+      setContent(data);
       setIsLoading(false);
     });
 
-    return () => {
-      unsubscribeFeatured();
-      unsubscribeScriptures();
-    };
+    // Check notification status
+    areNotificationsEnabled().then(setNotificationsOn);
+
+    return () => unsubscribe();
   }, []);
 
-  const handleReadScripture = (bookId: string, chapter: number) => {
-    router.push(`/reader?bookId=${bookId}&chapter=${chapter}`);
+  // Schedule notifications when content changes and notifications are enabled
+  useEffect(() => {
+    if (content && notificationsOn) {
+      scheduleSnippetNotifications();
+    }
+  }, [content?.weekId, notificationsOn]);
+
+  // Toggle notifications
+  const handleNotificationToggle = async (value: boolean) => {
+    setIsTogglingNotifications(true);
+    await setNotificationsEnabled(value);
+    setNotificationsOn(value);
+    setIsTogglingNotifications(false);
   };
 
-  const hasFeaturedContent = featuredScripture !== null;
-  const hasWeeklyScriptures = weeklyScriptures.length > 0;
+  // Navigate to snippet detail
+  const openSnippet = (snippet: Snippet) => {
+    router.push(`/snippet/${snippet.id}`);
+  };
+
+  const hasContent = content !== null && content.snippets.length > 0;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -63,13 +79,12 @@ export default function HomeScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Continue where you left off - at the top */}
+        {/* Continue where you left off */}
         {lastRead && (
           <TouchableOpacity
             style={[styles.continueCard, { backgroundColor: colors.accent }]}
             onPress={() => router.push(`/reader?bookId=${lastRead.bookId}&chapter=${lastRead.chapter}`)}
             activeOpacity={0.7}
-            testID="continue-where-left-off-button"
           >
             <View style={styles.continueContent}>
               <View style={[styles.continueIcon, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
@@ -86,95 +101,106 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
 
+        {/* Notification Toggle */}
+        <View style={[styles.notificationCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.notificationContent}>
+            {notificationsOn ? (
+              <Bell color={colors.accent} size={24} />
+            ) : (
+              <BellOff color={colors.textMuted} size={24} />
+            )}
+            <View style={styles.notificationText}>
+              <Text style={[styles.notificationTitle, { color: colors.text }]}>
+                Daily Teachings
+              </Text>
+              <Text style={[styles.notificationDesc, { color: colors.textSecondary }]}>
+                {notificationsOn ? 'Receive daily scripture insights' : 'Turn on to get daily reminders'}
+              </Text>
+            </View>
+            {isTogglingNotifications ? (
+              <ActivityIndicator size="small" color={colors.accent} />
+            ) : (
+              <Switch
+                value={notificationsOn}
+                onValueChange={handleNotificationToggle}
+                trackColor={{ false: colors.border, true: colors.accent + '80' }}
+                thumbColor={notificationsOn ? colors.accent : colors.textMuted}
+              />
+            )}
+          </View>
+        </View>
+
         {isLoading && (
           <View style={[styles.loadingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <ActivityIndicator size="large" color={colors.accent} />
             <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-              Loading scriptures...
+              Loading content...
             </Text>
           </View>
         )}
 
-        {!hasFeaturedContent && !hasWeeklyScriptures && !isLoading && (
-          <View style={[styles.noScripturesCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        {!hasContent && !isLoading && (
+          <View style={[styles.noContentCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <BookOpen color={colors.textMuted} size={40} />
-            <Text style={[styles.noScripturesTitle, { color: colors.text }]}>
-              No Scriptures Yet
+            <Text style={[styles.noContentTitle, { color: colors.text }]}>
+              No Content Yet
             </Text>
-            <Text style={[styles.noScripturesText, { color: colors.textSecondary }]}>
-              Scriptures will appear here once they are published. Check back soon!
+            <Text style={[styles.noContentText, { color: colors.textSecondary }]}>
+              Daily teachings will appear here once published. Check back soon!
             </Text>
           </View>
         )}
 
-        {hasFeaturedContent && featuredScripture && (
-          <View style={[styles.weeklyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.weeklyHeader}>
-              <View style={[styles.weeklyBadge, { backgroundColor: colors.gold + '20' }]}>
-                <Text style={[styles.weeklyBadgeText, { color: colors.gold }]}>
-                  FEATURED
+        {/* Weekly Content Title */}
+        {hasContent && content && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                {content.weekTitle}
+              </Text>
+              <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+                {content.snippetCount} teachings available
+              </Text>
+            </View>
+
+            {/* Snippets List */}
+            <View style={styles.snippetsList}>
+              {content.snippets.slice(0, 10).map((snippet, index) => (
+                <TouchableOpacity
+                  key={snippet.id}
+                  style={[styles.snippetCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  onPress={() => openSnippet(snippet)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.snippetNumber}>
+                    <Text style={[styles.snippetNumberText, { color: colors.accent }]}>
+                      {index + 1}
+                    </Text>
+                  </View>
+                  <View style={styles.snippetContent}>
+                    <Text style={[styles.snippetTitle, { color: colors.text }]} numberOfLines={1}>
+                      {snippet.title}
+                    </Text>
+                    <Text style={[styles.snippetBody, { color: colors.textSecondary }]} numberOfLines={2}>
+                      {snippet.body}
+                    </Text>
+                    {snippet.scripture?.reference && (
+                      <Text style={[styles.snippetScripture, { color: colors.accent }]}>
+                        {snippet.scripture.reference}
+                      </Text>
+                    )}
+                  </View>
+                  <ChevronRight color={colors.textMuted} size={20} />
+                </TouchableOpacity>
+              ))}
+
+              {content.snippets.length > 10 && (
+                <Text style={[styles.moreText, { color: colors.textMuted }]}>
+                  + {content.snippets.length - 10} more teachings
                 </Text>
-              </View>
-            </View>
-
-            <Text style={[styles.weeklyTitle, { color: colors.text }]}>
-              {featuredScripture.verse}
-            </Text>
-
-            {featuredScripture.message && (
-              <Text style={[styles.weeklyDescription, { color: colors.textSecondary }]}>
-                {featuredScripture.message}
-              </Text>
-            )}
-
-            <View style={[styles.versePreview, { backgroundColor: colors.surfaceSecondary }]}>
-              <Text style={[styles.verseReference, { color: colors.accent }]}>
-                {featuredScripture.verse}
-              </Text>
-              <Text style={[styles.verseText, { color: colors.text }]}>
-                {`"${featuredScripture.text}"`}
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.accent }]}
-              onPress={() => handleReadScripture(
-                featuredScripture.bookId,
-                featuredScripture.chapter
               )}
-              testID="read-featured-button"
-            >
-              <BookOpen color="#FFFFFF" size={18} />
-              <Text style={styles.actionButtonText}>Read Scripture</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {hasWeeklyScriptures && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              This Week's Scriptures
-            </Text>
-
-            {weeklyScriptures.map((scripture, index) => (
-              <TouchableOpacity
-                key={scripture.id || index}
-                style={[styles.scriptureItem, { backgroundColor: colors.card, borderColor: colors.border }]}
-                onPress={() => handleReadScripture(scripture.bookId, scripture.chapter)}
-                testID={`scripture-item-${index}`}
-              >
-                <View style={styles.scriptureInfo}>
-                  <Text style={[styles.scriptureName, { color: colors.text }]}>
-                    {scripture.verse}
-                  </Text>
-                  <Text style={[styles.scriptureVerse, { color: colors.textSecondary }]} numberOfLines={1}>
-                    {scripture.text.substring(0, 50)}...
-                  </Text>
-                </View>
-                <ChevronRight color={colors.textMuted} size={20} />
-              </TouchableOpacity>
-            ))}
-          </View>
+            </View>
+          </>
         )}
       </ScrollView>
     </View>
@@ -188,115 +214,10 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
   },
-  loadingCard: {
-    borderRadius: 16,
-    padding: 32,
-    marginBottom: 24,
-    borderWidth: 1,
-    alignItems: 'center',
-    gap: 16,
-  },
-  loadingText: {
-    fontSize: 15,
-  },
-  weeklyCard: {
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 28,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  weeklyHeader: {
-    flexDirection: 'row',
-    marginBottom: 12,
-  },
-  weeklyBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  weeklyBadgeText: {
-    fontSize: 11,
-    fontWeight: '700' as const,
-    letterSpacing: 1,
-  },
-  weeklyTitle: {
-    fontSize: 22,
-    fontWeight: '700' as const,
-    marginBottom: 8,
-    letterSpacing: -0.3,
-  },
-  weeklyDescription: {
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 16,
-  },
-  versePreview: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  verseReference: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    marginBottom: 8,
-  },
-  verseText: {
-    fontSize: 16,
-    lineHeight: 26,
-    fontStyle: 'italic',
-    fontFamily: 'Georgia',
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 10,
-    gap: 8,
-  },
-  actionButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600' as const,
-  },
-  section: {
-    marginBottom: 28,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700' as const,
-    marginBottom: 14,
-    letterSpacing: -0.3,
-  },
-  scriptureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-  },
-  scriptureInfo: {
-    flex: 1,
-  },
-  scriptureName: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    marginBottom: 2,
-  },
-  scriptureVerse: {
-    fontSize: 14,
-  },
   continueCard: {
     borderRadius: 16,
     padding: 20,
-    marginBottom: 24,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -321,33 +242,124 @@ const styles = StyleSheet.create({
   },
   continueLabel: {
     fontSize: 13,
-    fontWeight: '600' as const,
+    fontWeight: '600',
     color: '#FFFFFF',
     opacity: 0.9,
     marginBottom: 4,
   },
   continueTitle: {
     fontSize: 18,
-    fontWeight: '700' as const,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
-  noScripturesCard: {
+  notificationCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+  },
+  notificationContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  notificationText: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 12,
+  },
+  notificationTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  notificationDesc: {
+    fontSize: 13,
+  },
+  loadingCard: {
+    borderRadius: 16,
+    padding: 32,
+    marginBottom: 24,
+    borderWidth: 1,
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 15,
+  },
+  noContentCard: {
     borderRadius: 16,
     padding: 32,
     marginBottom: 24,
     borderWidth: 1,
     alignItems: 'center',
   },
-  noScripturesTitle: {
+  noContentTitle: {
     fontSize: 18,
-    fontWeight: '600' as const,
+    fontWeight: '600',
     marginTop: 16,
     marginBottom: 8,
     textAlign: 'center',
   },
-  noScripturesText: {
+  noContentText: {
     fontSize: 15,
     lineHeight: 22,
     textAlign: 'center',
+  },
+  sectionHeader: {
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+  },
+  snippetsList: {
+    gap: 12,
+  },
+  snippetCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  snippetNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  snippetNumberText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  snippetContent: {
+    flex: 1,
+    marginRight: 8,
+  },
+  snippetTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  snippetBody: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  snippetScripture: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 6,
+  },
+  moreText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 8,
   },
 });

@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { View, ActivityIndicator } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ThemeProvider } from "@/contexts/ThemeContext";
@@ -28,6 +28,9 @@ Notifications.setNotificationHandler({
   }),
 });
 
+// Track if we've already handled initial notification
+let initialNotificationHandled = false;
+
 const queryClient = new QueryClient();
 
 function RootLayoutNav() {
@@ -38,13 +41,45 @@ function RootLayoutNav() {
   const { isLoading: progressLoading, shouldAutoNavigate, lastRead, markSessionEnded } = useReadingProgress();
   const router = useRouter();
   const [hasAutoNavigated, setHasAutoNavigated] = useState(false);
+  const notificationListener = useRef<any>();
+  const responseListener = useRef<any>();
 
   const isLoading = subLoading || bookmarksLoading || adminLoading || scripturesLoading || progressLoading;
+
+  // Handle notification taps
+  useEffect(() => {
+    // Handle notification tap when app is in background/closed
+    const handleNotificationResponse = (response: Notifications.NotificationResponse) => {
+      const data = response.notification.request.content.data;
+      if (data?.snippetId) {
+        router.push(`/snippet/${data.snippetId}`);
+      }
+    };
+
+    // Check for initial notification (app opened from notification)
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response && !initialNotificationHandled) {
+        initialNotificationHandled = true;
+        handleNotificationResponse(response);
+      }
+    });
+
+    // Listen for notification taps while app is running
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(
+      handleNotificationResponse
+    );
+
+    return () => {
+      if (responseListener.current) {
+        Notifications.removeNotificationSubscription(responseListener.current);
+      }
+    };
+  }, [router]);
 
   useEffect(() => {
     if (!isLoading) {
       SplashScreen.hideAsync();
-      
+
       if (shouldAutoNavigate && lastRead && !hasAutoNavigated) {
         console.log('[Layout] Auto-navigating to last read:', lastRead);
         setHasAutoNavigated(true);
@@ -126,6 +161,14 @@ function RootLayoutNav() {
           name="login"
           options={{
             headerShown: false,
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="snippet/[id]"
+          options={{
+            headerShown: true,
+            headerTitle: 'Teaching',
             presentation: 'card',
           }}
         />

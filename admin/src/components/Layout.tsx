@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { BookOpen, Settings, LogOut, LayoutDashboard, Users, Upload } from 'lucide-react';
+import { BookOpen, Settings, LogOut, LayoutDashboard, Users, Sparkles, Bell, FileText } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -17,8 +17,10 @@ export default function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/scriptures', icon: BookOpen, label: 'Scriptures' },
-    { to: '/import', icon: Upload, label: 'Import' },
+    { to: '/process', icon: Sparkles, label: 'Process Doc' },
+    { to: '/content', icon: BookOpen, label: 'Content' },
+    { to: '/prompt-settings', icon: FileText, label: 'AI Prompt' },
+    { to: '/notification-settings', icon: Bell, label: 'Notifications' },
     { to: '/users', icon: Users, label: 'Users' },
     { to: '/settings', icon: Settings, label: 'Settings' },
   ];

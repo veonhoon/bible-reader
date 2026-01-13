@@ -1,6 +1,8 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { getFirestore, Firestore } from 'firebase/firestore';
+import { initializeAuth, getAuth, getReactNativePersistence, Auth } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -11,24 +13,48 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase (avoid re-initialization)
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+// Check if Firebase is properly configured
+const isFirebaseConfigured = Boolean(
+  firebaseConfig.apiKey &&
+  firebaseConfig.apiKey !== 'your-api-key-here' &&
+  firebaseConfig.projectId
+);
 
-// Initialize Firestore
-export const db = getFirestore(app);
-
-// Initialize Auth
-export const auth = getAuth(app);
-
-// Enable offline persistence for Firestore (web only)
-if (typeof window !== 'undefined') {
-  enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code === 'failed-precondition') {
-      console.log('Firestore persistence failed: Multiple tabs open');
-    } else if (err.code === 'unimplemented') {
-      console.log('Firestore persistence not available in this browser');
-    }
-  });
+if (!isFirebaseConfigured) {
+  console.warn(
+    '⚠️ Firebase is not configured. Please create a .env file with your Firebase credentials.\n' +
+    'Copy .env.example to .env and fill in your values from the Firebase Console.'
+  );
 }
 
+// Initialize Firebase (avoid re-initialization)
+let app: FirebaseApp | null = null;
+let db: Firestore | null = null;
+let auth: Auth | null = null;
+
+if (isFirebaseConfigured) {
+  try {
+    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    db = getFirestore(app);
+
+    // Initialize Auth with persistence for React Native
+    if (getApps().length === 1) {
+      // First initialization - use initializeAuth with AsyncStorage persistence
+      if (Platform.OS !== 'web') {
+        auth = initializeAuth(app, {
+          persistence: getReactNativePersistence(AsyncStorage),
+        });
+      } else {
+        auth = getAuth(app);
+      }
+    } else {
+      // Already initialized - just get the existing auth instance
+      auth = getAuth(app);
+    }
+  } catch (error) {
+    console.error('Firebase initialization error:', error);
+  }
+}
+
+export { db, auth, isFirebaseConfigured };
 export default app;

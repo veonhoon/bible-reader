@@ -2,8 +2,10 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
-import Scriptures from './pages/Scriptures';
-import ImportScriptures from './pages/ImportScriptures';
+import WeeklyContent from './pages/WeeklyContent';
+import DocumentProcessor from './pages/DocumentProcessor';
+import PromptSettings from './pages/PromptSettings';
+import NotificationSettings from './pages/NotificationSettings';
 import Users from './pages/Users';
 import Settings from './pages/Settings';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -34,18 +36,34 @@ function App() {
         }
       />
       <Route
-        path="/scriptures"
+        path="/content"
         element={
           <ProtectedRoute>
-            <Scriptures />
+            <WeeklyContent />
           </ProtectedRoute>
         }
       />
       <Route
-        path="/import"
+        path="/process"
         element={
           <ProtectedRoute>
-            <ImportScriptures />
+            <DocumentProcessor />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/prompt-settings"
+        element={
+          <ProtectedRoute>
+            <PromptSettings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/notification-settings"
+        element={
+          <ProtectedRoute>
+            <NotificationSettings />
           </ProtectedRoute>
         }
       />

@@ -11,7 +11,10 @@ import {
   Timestamp,
   Unsubscribe,
 } from 'firebase/firestore';
-import { db } from '@/config/firebase';
+import { db, isFirebaseConfigured } from '@/config/firebase';
+
+// No-op unsubscribe function for when Firebase is not configured
+const noopUnsubscribe: Unsubscribe = () => {};
 
 export interface Scripture {
   id: string;
@@ -69,6 +72,9 @@ const docToScripture = (docSnap: any): Scripture => {
 
 // Get all scriptures
 export const getScriptures = async (): Promise<Scripture[]> => {
+  if (!isFirebaseConfigured || !db) {
+    return [];
+  }
   try {
     const q = query(
       collection(db, SCRIPTURES_COLLECTION),
@@ -84,6 +90,9 @@ export const getScriptures = async (): Promise<Scripture[]> => {
 
 // Get featured scripture (for home page)
 export const getFeaturedScripture = async (): Promise<Scripture | null> => {
+  if (!isFirebaseConfigured || !db) {
+    return null;
+  }
   try {
     const q = query(
       collection(db, SCRIPTURES_COLLECTION),
@@ -101,6 +110,9 @@ export const getFeaturedScripture = async (): Promise<Scripture | null> => {
 
 // Get recent scriptures
 export const getRecentScriptures = async (count: number = 7): Promise<Scripture[]> => {
+  if (!isFirebaseConfigured || !db) {
+    return [];
+  }
   try {
     const q = query(
       collection(db, SCRIPTURES_COLLECTION),
@@ -117,6 +129,9 @@ export const getRecentScriptures = async (count: number = 7): Promise<Scripture[
 
 // Get scripture for a specific date
 export const getDailyScripture = async (date: Date): Promise<Scripture | null> => {
+  if (!isFirebaseConfigured || !db) {
+    return null;
+  }
   try {
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
@@ -143,6 +158,10 @@ export const getDailyScripture = async (date: Date): Promise<Scripture | null> =
 export const subscribeToScriptures = (
   callback: (scriptures: Scripture[]) => void
 ): Unsubscribe => {
+  if (!isFirebaseConfigured || !db) {
+    callback([]);
+    return noopUnsubscribe;
+  }
   const q = query(
     collection(db, SCRIPTURES_COLLECTION),
     orderBy('date', 'desc')
@@ -161,6 +180,10 @@ export const subscribeToScriptures = (
 export const subscribeToFeaturedScripture = (
   callback: (scripture: Scripture | null) => void
 ): Unsubscribe => {
+  if (!isFirebaseConfigured || !db) {
+    callback(null);
+    return noopUnsubscribe;
+  }
   const q = query(
     collection(db, SCRIPTURES_COLLECTION),
     where('isFeatured', '==', true),
@@ -181,6 +204,9 @@ export const subscribeToFeaturedScripture = (
 
 // Get app settings
 export const getAppSettings = async (): Promise<AppSettings | null> => {
+  if (!isFirebaseConfigured || !db) {
+    return null;
+  }
   try {
     const docRef = doc(db, SETTINGS_COLLECTION, 'app_config');
     const snapshot = await getDoc(docRef);
@@ -203,6 +229,10 @@ export const getAppSettings = async (): Promise<AppSettings | null> => {
 export const subscribeToAppSettings = (
   callback: (settings: AppSettings | null) => void
 ): Unsubscribe => {
+  if (!isFirebaseConfigured || !db) {
+    callback(null);
+    return noopUnsubscribe;
+  }
   const docRef = doc(db, SETTINGS_COLLECTION, 'app_config');
 
   return onSnapshot(docRef, (snapshot) => {
@@ -225,6 +255,9 @@ export const subscribeToAppSettings = (
 
 // Get devotional for a scripture
 export const getDevotional = async (scriptureId: string): Promise<Devotional | null> => {
+  if (!isFirebaseConfigured || !db) {
+    return null;
+  }
   try {
     const q = query(
       collection(db, DEVOTIONALS_COLLECTION),

@@ -2,8 +2,17 @@ import { Link, Stack } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 import { useTheme } from "@/contexts/ThemeContext";
 
+// Fallback colors in case ThemeProvider context is unavailable
+const fallbackColors = {
+  background: '#FFFFFF',
+  text: '#1A1A1A',
+  textSecondary: '#6B7280',
+  accent: '#6366F1',
+};
+
 export default function NotFoundScreen() {
-  const { colors } = useTheme();
+  const themeContext = useTheme();
+  const colors = themeContext?.colors ?? fallbackColors;
 
   return (
     <>
