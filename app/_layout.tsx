@@ -15,6 +15,7 @@ import { ReadingProgressProvider, useReadingProgress } from "@/contexts/ReadingP
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import * as Notifications from 'expo-notifications';
 import Paywall from "@/components/Paywall";
+import { registerPushTokenToFirestore } from "@/services/notificationScheduler";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -45,6 +46,15 @@ function RootLayoutNav() {
   const responseListener = useRef<any>();
 
   const isLoading = subLoading || bookmarksLoading || adminLoading || scripturesLoading || progressLoading;
+
+  // Register push token to Firestore when user is authenticated
+  const { isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      registerPushTokenToFirestore();
+    }
+  }, [isAuthenticated]);
 
   // Handle notification taps
   useEffect(() => {

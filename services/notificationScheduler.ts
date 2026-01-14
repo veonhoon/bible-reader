@@ -1,6 +1,9 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
+import { db, auth, isFirebaseConfigured } from '@/config/firebase';
+import Constants from 'expo-constants';
 import {
   WeeklyContent,
   Snippet,
@@ -12,6 +15,11 @@ import {
 const NOTIFICATIONS_ENABLED_KEY = '@notifications_enabled';
 const LAST_SCHEDULED_WEEK_KEY = '@last_scheduled_week';
 const SNIPPET_INDEX_KEY = '@current_snippet_index';
+const SUBSCRIPTION_STORAGE_KEY = 'bible_app_subscription';
+
+// Quiet hours configuration (local time)
+const QUIET_HOURS_START = 22; // 10 PM
+const QUIET_HOURS_END = 8;    // 8 AM
 
 // Day name to number mapping (0 = Sunday, 1 = Monday, etc.)
 const DAY_MAP: Record<string, number> = {
@@ -23,6 +31,46 @@ const DAY_MAP: Record<string, number> = {
   Fri: 5,
   Sat: 6,
 };
+
+// Check if user has premium status (from local storage or Firestore)
+export async function checkPremiumStatus(): Promise<boolean> {
+  try {
+    // First check local subscription data
+    const subData = await AsyncStorage.getItem(SUBSCRIPTION_STORAGE_KEY);
+    if (subData) {
+      const subscription = JSON.parse(subData);
+      if (subscription.status === 'active' || subscription.status === 'trial') {
+        // Check if not expired
+        if (subscription.expiresAt && new Date(subscription.expiresAt) > new Date()) {
+          return true;
+        }
+      }
+    }
+
+    // Check Firestore for admin-granted premium
+    if (isFirebaseConfigured && db && auth?.currentUser) {
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      const userDoc = await getDoc(userRef);
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        if (data.isPremium === true) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  } catch (error) {
+    console.error('Error checking premium status:', error);
+    return false;
+  }
+}
+
+// Check if time falls within quiet hours
+function isInQuietHours(hours: number): boolean {
+  // Quiet hours: 10 PM (22) to 8 AM (8)
+  return hours >= QUIET_HOURS_START || hours < QUIET_HOURS_END;
+}
 
 // Request notification permissions
 export async function requestNotificationPermissions(): Promise<boolean> {
@@ -146,11 +194,20 @@ async function getNextSnippetIndex(totalSnippets: number): Promise<number> {
 }
 
 // Schedule notifications based on admin schedule and snippets
+// Only premium users will receive notifications
 export async function scheduleSnippetNotifications(): Promise<number> {
   // Check if user has notifications enabled
   const enabled = await areNotificationsEnabled();
   if (!enabled) {
     console.log('Notifications disabled by user');
+    return 0;
+  }
+
+  // Check premium status - only premium users get notifications
+  const isPremium = await checkPremiumStatus();
+  if (!isPremium) {
+    console.log('User is not premium - notifications not scheduled');
+    await cancelAllScheduledNotifications();
     return 0;
   }
 
@@ -195,6 +252,13 @@ export async function scheduleSnippetNotifications(): Promise<number> {
 
       for (let timeIndex = 0; timeIndex < perDay && timeIndex < times.length; timeIndex++) {
         const { hours, minutes } = parseTime(times[timeIndex]);
+
+        // Skip if time is in quiet hours (10 PM - 8 AM)
+        if (isInQuietHours(hours)) {
+          console.log(`Skipping ${hours}:${minutes} - quiet hours`);
+          continue;
+        }
+
         const scheduledDate = getNextOccurrence(dayNumber, hours, minutes, week);
 
         // Skip if in the past
@@ -217,6 +281,7 @@ export async function scheduleSnippetNotifications(): Promise<number> {
               },
             },
             trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
               date: scheduledDate,
             },
           });
@@ -252,8 +317,15 @@ export async function getExpoPushToken(): Promise<string | null> {
       return null;
     }
 
+    // Get project ID from Constants
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+    if (!projectId) {
+      console.error('No project ID found in app config');
+      return null;
+    }
+
     const token = await Notifications.getExpoPushTokenAsync({
-      projectId: process.env.EXPO_PUBLIC_PROJECT_ID,
+      projectId,
     });
 
     console.log('Expo Push Token:', token.data);
@@ -261,6 +333,34 @@ export async function getExpoPushToken(): Promise<string | null> {
   } catch (error) {
     console.error('Error getting push token:', error);
     return null;
+  }
+}
+
+// Register push token to Firestore for admin testing
+export async function registerPushTokenToFirestore(): Promise<void> {
+  try {
+    const token = await getExpoPushToken();
+    if (!token) {
+      console.log('No push token available to register');
+      return;
+    }
+
+    if (!isFirebaseConfigured || !db) {
+      console.log('Firebase not configured, skipping token registration');
+      return;
+    }
+
+    // Save to adminSettings/testDevice for easy access from admin panel
+    const docRef = doc(db, 'adminSettings', 'testDevice');
+    await setDoc(docRef, {
+      pushToken: token,
+      platform: Platform.OS,
+      registeredAt: Timestamp.now(),
+    }, { merge: true });
+
+    console.log('Push token registered to Firestore');
+  } catch (error) {
+    console.error('Error registering push token:', error);
   }
 }
 
@@ -274,6 +374,8 @@ export function setupNotificationHandler(
       shouldShowAlert: true,
       shouldPlaySound: true,
       shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
     }),
   });
 

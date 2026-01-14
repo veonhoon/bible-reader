@@ -7,16 +7,21 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Switch,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { BookOpen, ChevronRight, Clock, Bell, BellOff } from 'lucide-react-native';
+import { BookOpen, ChevronRight, Clock, Bell, BellOff, Calendar, Crown } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useReadingProgress } from '@/contexts/ReadingProgressContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import {
   WeeklyContent,
   Snippet,
   subscribeToLatestWeeklyContent,
+  getTodaysSnippets,
+  getDailyProgress,
+  DailyProgress,
 } from '@/services/weeklyContentService';
 import {
   areNotificationsEnabled,
@@ -24,13 +29,26 @@ import {
   scheduleSnippetNotifications,
 } from '@/services/notificationScheduler';
 
+// Format date for display
+const formatWeekDate = (date: Date): string => {
+  const options: Intl.DateTimeFormatOptions = {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric'
+  };
+  return date.toLocaleDateString('en-US', options);
+};
+
 export default function HomeScreen() {
   const { colors } = useTheme();
   const { lastRead } = useReadingProgress();
+  const { isSubscribed, openPaywall } = useSubscription();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
   const [content, setContent] = useState<WeeklyContent | null>(null);
+  const [todaysSnippets, setTodaysSnippets] = useState<Snippet[]>([]);
+  const [progress, setProgress] = useState<DailyProgress | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [notificationsOn, setNotificationsOn] = useState(false);
   const [isTogglingNotifications, setIsTogglingNotifications] = useState(false);
@@ -39,6 +57,14 @@ export default function HomeScreen() {
   useEffect(() => {
     const unsubscribe = subscribeToLatestWeeklyContent((data) => {
       setContent(data);
+      if (data) {
+        // Get only today's snippets
+        setTodaysSnippets(getTodaysSnippets(data));
+        setProgress(getDailyProgress(data));
+      } else {
+        setTodaysSnippets([]);
+        setProgress(null);
+      }
       setIsLoading(false);
     });
 
@@ -50,13 +76,26 @@ export default function HomeScreen() {
 
   // Schedule notifications when content changes and notifications are enabled
   useEffect(() => {
-    if (content && notificationsOn) {
+    if (content && notificationsOn && isSubscribed) {
       scheduleSnippetNotifications();
     }
-  }, [content?.weekId, notificationsOn]);
+  }, [content?.weekId, notificationsOn, isSubscribed]);
 
   // Toggle notifications
   const handleNotificationToggle = async (value: boolean) => {
+    // If trying to enable and not premium, show paywall
+    if (value && !isSubscribed) {
+      Alert.alert(
+        'Premium Feature',
+        'Daily teaching notifications are a premium feature. Upgrade to receive scripture insights throughout your day.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Upgrade', onPress: openPaywall }
+        ]
+      );
+      return;
+    }
+
     setIsTogglingNotifications(true);
     await setNotificationsEnabled(value);
     setNotificationsOn(value);
@@ -68,7 +107,7 @@ export default function HomeScreen() {
     router.push(`/snippet/${snippet.id}`);
   };
 
-  const hasContent = content !== null && content.snippets.length > 0;
+  const hasContent = content !== null && todaysSnippets.length > 0;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -79,57 +118,6 @@ export default function HomeScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Continue where you left off */}
-        {lastRead && (
-          <TouchableOpacity
-            style={[styles.continueCard, { backgroundColor: colors.accent }]}
-            onPress={() => router.push(`/reader?bookId=${lastRead.bookId}&chapter=${lastRead.chapter}`)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.continueContent}>
-              <View style={[styles.continueIcon, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-                <Clock color="#FFFFFF" size={24} />
-              </View>
-              <View style={styles.continueTextContainer}>
-                <Text style={styles.continueLabel}>Continue where you left off</Text>
-                <Text style={styles.continueTitle}>
-                  {lastRead.bookName} {lastRead.chapter}
-                </Text>
-              </View>
-              <ChevronRight color="#FFFFFF" size={24} />
-            </View>
-          </TouchableOpacity>
-        )}
-
-        {/* Notification Toggle */}
-        <View style={[styles.notificationCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.notificationContent}>
-            {notificationsOn ? (
-              <Bell color={colors.accent} size={24} />
-            ) : (
-              <BellOff color={colors.textMuted} size={24} />
-            )}
-            <View style={styles.notificationText}>
-              <Text style={[styles.notificationTitle, { color: colors.text }]}>
-                Daily Teachings
-              </Text>
-              <Text style={[styles.notificationDesc, { color: colors.textSecondary }]}>
-                {notificationsOn ? 'Receive daily scripture insights' : 'Turn on to get daily reminders'}
-              </Text>
-            </View>
-            {isTogglingNotifications ? (
-              <ActivityIndicator size="small" color={colors.accent} />
-            ) : (
-              <Switch
-                value={notificationsOn}
-                onValueChange={handleNotificationToggle}
-                trackColor={{ false: colors.border, true: colors.accent + '80' }}
-                thumbColor={notificationsOn ? colors.accent : colors.textMuted}
-              />
-            )}
-          </View>
-        </View>
-
         {isLoading && (
           <View style={[styles.loadingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <ActivityIndicator size="large" color={colors.accent} />
@@ -151,21 +139,88 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Weekly Content Title */}
-        {hasContent && content && (
+        {/* Weekly Content Title - At the very top */}
+        {hasContent && content && progress && (
           <>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            <View style={styles.headerSection}>
+              <Text style={[styles.weekTitle, { color: colors.text }]}>
                 {content.weekTitle}
               </Text>
-              <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
-                {content.snippetCount} teachings available
-              </Text>
+              <View style={styles.dateRow}>
+                <Calendar color={colors.textMuted} size={16} />
+                <Text style={[styles.dateText, { color: colors.textSecondary }]}>
+                  {formatWeekDate(content.publishedAt)}
+                </Text>
+              </View>
+              {/* Day Progress */}
+              <View style={[styles.progressCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.progressTitle, { color: colors.text }]}>
+                  Day {progress.currentDay + 1} of 7
+                </Text>
+                <View style={styles.progressBarContainer}>
+                  <View
+                    style={[
+                      styles.progressBar,
+                      {
+                        backgroundColor: colors.accent,
+                        width: `${((progress.currentDay + 1) / 7) * 100}%`,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={[styles.progressSubtext, { color: colors.textSecondary }]}>
+                  {todaysSnippets.length} teachings for today
+                </Text>
+              </View>
             </View>
 
-            {/* Snippets List */}
+            {/* Notification Toggle */}
+            <View style={[styles.notificationCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.notificationContent}>
+                {notificationsOn && isSubscribed ? (
+                  <Bell color={colors.accent} size={24} />
+                ) : (
+                  <BellOff color={colors.textMuted} size={24} />
+                )}
+                <View style={styles.notificationText}>
+                  <View style={styles.notificationTitleRow}>
+                    <Text style={[styles.notificationTitle, { color: colors.text }]}>
+                      Daily Teachings
+                    </Text>
+                    {!isSubscribed && (
+                      <View style={[styles.premiumBadge, { backgroundColor: colors.accent + '20' }]}>
+                        <Crown color={colors.accent} size={12} />
+                        <Text style={[styles.premiumBadgeText, { color: colors.accent }]}>Premium</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={[styles.notificationDesc, { color: colors.textSecondary }]}>
+                    {notificationsOn && isSubscribed
+                      ? 'Receive daily scripture insights'
+                      : isSubscribed
+                      ? 'Turn on to get daily reminders'
+                      : 'Upgrade to receive daily reminders'}
+                  </Text>
+                </View>
+                {isTogglingNotifications ? (
+                  <ActivityIndicator size="small" color={colors.accent} />
+                ) : (
+                  <Switch
+                    value={notificationsOn && isSubscribed}
+                    onValueChange={handleNotificationToggle}
+                    trackColor={{ false: colors.border, true: colors.accent + '80' }}
+                    thumbColor={notificationsOn && isSubscribed ? colors.accent : colors.textMuted}
+                  />
+                )}
+              </View>
+            </View>
+
+            {/* Today's Snippets List */}
+            <Text style={[styles.sectionLabel, { color: colors.text }]}>
+              Today's Teachings
+            </Text>
             <View style={styles.snippetsList}>
-              {content.snippets.slice(0, 10).map((snippet, index) => (
+              {todaysSnippets.map((snippet, index) => (
                 <TouchableOpacity
                   key={snippet.id}
                   style={[styles.snippetCard, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -193,14 +248,52 @@ export default function HomeScreen() {
                   <ChevronRight color={colors.textMuted} size={20} />
                 </TouchableOpacity>
               ))}
-
-              {content.snippets.length > 10 && (
-                <Text style={[styles.moreText, { color: colors.textMuted }]}>
-                  + {content.snippets.length - 10} more teachings
-                </Text>
-              )}
             </View>
+
+            {/* Continue where you left off - At the very bottom */}
+            {lastRead && (
+              <TouchableOpacity
+                style={[styles.continueCard, { backgroundColor: colors.accent }]}
+                onPress={() => router.push(`/reader?bookId=${lastRead.bookId}&chapter=${lastRead.chapter}`)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.continueContent}>
+                  <View style={[styles.continueIcon, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                    <Clock color="#FFFFFF" size={24} />
+                  </View>
+                  <View style={styles.continueTextContainer}>
+                    <Text style={styles.continueLabel}>Continue where you left off</Text>
+                    <Text style={styles.continueTitle}>
+                      {lastRead.bookName} {lastRead.chapter}
+                    </Text>
+                  </View>
+                  <ChevronRight color="#FFFFFF" size={24} />
+                </View>
+              </TouchableOpacity>
+            )}
           </>
+        )}
+
+        {/* Show continue reading even when no content */}
+        {!hasContent && !isLoading && lastRead && (
+          <TouchableOpacity
+            style={[styles.continueCard, { backgroundColor: colors.accent, marginTop: 16 }]}
+            onPress={() => router.push(`/reader?bookId=${lastRead.bookId}&chapter=${lastRead.chapter}`)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.continueContent}>
+              <View style={[styles.continueIcon, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                <Clock color="#FFFFFF" size={24} />
+              </View>
+              <View style={styles.continueTextContainer}>
+                <Text style={styles.continueLabel}>Continue where you left off</Text>
+                <Text style={styles.continueTitle}>
+                  {lastRead.bookName} {lastRead.chapter}
+                </Text>
+              </View>
+              <ChevronRight color="#FFFFFF" size={24} />
+            </View>
+          </TouchableOpacity>
         )}
       </ScrollView>
     </View>
@@ -214,10 +307,62 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
   },
+  headerSection: {
+    marginBottom: 20,
+  },
+  weekTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  dateText: {
+    fontSize: 14,
+    marginLeft: 6,
+  },
+  snippetCountText: {
+    fontSize: 14,
+    marginTop: 4,
+  },
+  progressCard: {
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  progressTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  progressBarContainer: {
+    height: 8,
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  progressBar: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  progressSubtext: {
+    fontSize: 14,
+  },
+  sectionLabel: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+    marginTop: 8,
+  },
   continueCard: {
     borderRadius: 16,
     padding: 20,
-    marginBottom: 16,
+    marginTop: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -255,7 +400,7 @@ const styles = StyleSheet.create({
   notificationCard: {
     borderRadius: 16,
     padding: 16,
-    marginBottom: 24,
+    marginBottom: 20,
     borderWidth: 1,
   },
   notificationContent: {
@@ -267,10 +412,27 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     marginRight: 12,
   },
+  notificationTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
   notificationTitle: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 2,
+  },
+  premiumBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  premiumBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginLeft: 4,
   },
   notificationDesc: {
     fontSize: 13,
@@ -304,17 +466,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     textAlign: 'center',
-  },
-  sectionHeader: {
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
   },
   snippetsList: {
     gap: 12,
@@ -356,10 +507,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     marginTop: 6,
-  },
-  moreText: {
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 8,
   },
 });

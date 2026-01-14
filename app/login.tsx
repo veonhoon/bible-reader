@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { BookOpen, Mail, Lock, User, ChevronLeft } from 'lucide-react-native';
+import { Mail, Lock, User, ChevronLeft } from 'lucide-react-native';
 import { AntDesign } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,7 +22,7 @@ let AppleAuthentication: typeof import('expo-apple-authentication') | null = nul
 try {
   AppleAuthentication = require('expo-apple-authentication');
 } catch (e) {
-  console.log('expo-apple-authentication not available (running in Expo Go?)');
+  console.log('expo-apple-authentication not available');
 }
 
 type AuthMode = 'options' | 'signin' | 'signup';
@@ -40,7 +40,6 @@ export default function LoginScreen() {
     isAuthenticated,
     error,
     clearError,
-    isLoading,
   } = useAuth();
 
   const [mode, setMode] = useState<AuthMode>('options');
@@ -48,8 +47,9 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [localLoading, setLocalLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
-  // Navigate away when user becomes authenticated (for Google/Apple sign-in)
+  // Navigate away when user becomes authenticated
   React.useEffect(() => {
     if (isAuthenticated) {
       router.replace('/(tabs)');
@@ -85,8 +85,15 @@ export default function LoginScreen() {
   };
 
   const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
     clearError();
-    await signInWithGoogle();
+    try {
+      await signInWithGoogle();
+    } catch (err: any) {
+      console.log('[Login] Google sign in error:', err);
+    } finally {
+      setGoogleLoading(false);
+    }
   };
 
   const handleAppleSignIn = async () => {
@@ -105,12 +112,28 @@ export default function LoginScreen() {
 
   const renderOptions = () => (
     <View style={styles.optionsContainer}>
+      <Text style={[styles.title, { color: colors.text }]}>Sign In</Text>
+
+      {error && (
+        <View style={[styles.errorContainer, { backgroundColor: colors.error + '15' }]}>
+          <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
+        </View>
+      )}
+
       <TouchableOpacity
         style={[styles.socialButton, { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: colors.border }]}
         onPress={handleGoogleSignIn}
+        activeOpacity={0.7}
+        disabled={googleLoading}
       >
-        <AntDesign name="google" size={20} color="#4285F4" />
-        <Text style={[styles.socialButtonText, { color: '#1F1F1F' }]}>Continue with Google</Text>
+        {googleLoading ? (
+          <ActivityIndicator size="small" color="#4285F4" />
+        ) : (
+          <AntDesign name="google" size={20} color="#4285F4" />
+        )}
+        <Text style={[styles.socialButtonText, { color: '#1F1F1F' }]}>
+          {googleLoading ? 'Signing in...' : 'Continue with Google'}
+        </Text>
       </TouchableOpacity>
 
       {isAppleSignInAvailable && AppleAuthentication && (
@@ -150,6 +173,10 @@ export default function LoginScreen() {
 
   const renderEmailForm = () => (
     <View style={styles.formContainer}>
+      <Text style={[styles.title, { color: colors.text }]}>
+        {mode === 'signin' ? 'Sign In' : 'Create Account'}
+      </Text>
+
       {mode === 'signup' && (
         <View style={styles.inputContainer}>
           <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -243,7 +270,7 @@ export default function LoginScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 40 },
+          { paddingTop: insets.top + 10, paddingBottom: insets.bottom + 40 },
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -251,22 +278,6 @@ export default function LoginScreen() {
         <TouchableOpacity style={styles.backButton} onPress={handleBack}>
           <ChevronLeft color={colors.text} size={24} />
         </TouchableOpacity>
-
-        <View style={styles.header}>
-          <View style={[styles.iconContainer, { backgroundColor: colors.accent }]}>
-            <BookOpen color="#FFFFFF" size={32} />
-          </View>
-          <Text style={[styles.title, { color: colors.text }]}>
-            {mode === 'options' ? 'Welcome' : mode === 'signin' ? 'Sign In' : 'Create Account'}
-          </Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {mode === 'options'
-              ? 'Sign in to sync your progress and access premium features'
-              : mode === 'signin'
-              ? 'Enter your email and password'
-              : 'Fill in your details to get started'}
-          </Text>
-        </View>
 
         {mode === 'options' ? renderOptions() : renderEmailForm()}
 
@@ -291,30 +302,12 @@ const styles = StyleSheet.create({
     height: 44,
     justifyContent: 'center',
     marginLeft: -8,
-    marginBottom: 20,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  iconContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
+    marginBottom: 8,
   },
   title: {
     fontSize: 28,
     fontWeight: '700',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    textAlign: 'center',
-    lineHeight: 24,
-    paddingHorizontal: 20,
+    marginBottom: 20,
   },
   optionsContainer: {
     gap: 16,
@@ -328,7 +321,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   socialButtonText: {
-    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },

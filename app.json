@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Bible Teacher",
-    "slug": "bible-teacher",
+    "slug": "calm-bible-reader",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

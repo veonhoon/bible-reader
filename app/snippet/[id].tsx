@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Linking, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getSnippetById, Snippet } from '@/services/weeklyContentService';
+import { BIBLE_BOOKS } from '@/mocks/bibleData';
 
 export default function SnippetDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -21,11 +22,37 @@ export default function SnippetDetailScreen() {
     loadSnippet();
   }, [id]);
 
-  const openBibleApp = () => {
+  const parseScriptureReference = (reference: string): { bookId: string; chapter: number } | null => {
+    // Parse references like "John 3:16", "1 Corinthians 13:4-7", "Genesis 1:1", "Psalm 23"
+    // First, try to match the book name and chapter
+    const match = reference.match(/^(\d?\s*[A-Za-z\s]+?)\s*(\d+)(?:[:\.].*)?$/);
+    if (!match) return null;
+
+    const bookName = match[1].trim().toLowerCase();
+    const chapter = parseInt(match[2], 10);
+
+    // Find the book by matching name or shortName
+    const book = BIBLE_BOOKS.find(b => {
+      const name = b.name.toLowerCase();
+      const shortName = b.shortName.toLowerCase();
+      // Handle "Psalm" vs "Psalms"
+      const normalizedBookName = bookName.replace(/^psalm$/, 'psalms');
+      return name === normalizedBookName ||
+             shortName === normalizedBookName ||
+             name.startsWith(normalizedBookName) ||
+             normalizedBookName.startsWith(name.split(' ')[0]);
+    });
+
+    if (!book) return null;
+    return { bookId: book.id, chapter };
+  };
+
+  const openScripture = () => {
     if (snippet?.scripture?.reference) {
-      // Try to open Bible app or search
-      const searchQuery = encodeURIComponent(snippet.scripture.reference);
-      Linking.openURL(`https://www.bible.com/search/bible?q=${searchQuery}`);
+      const parsed = parseScriptureReference(snippet.scripture.reference);
+      if (parsed) {
+        router.push(`/reader?bookId=${parsed.bookId}&chapter=${parsed.chapter}`);
+      }
     }
   };
 
@@ -79,7 +106,7 @@ export default function SnippetDetailScreen() {
               <Text style={styles.scriptureReference}>{snippet.scripture.reference}</Text>
             </View>
             <Text style={styles.scriptureText}>"{snippet.scripture.text}"</Text>
-            <TouchableOpacity style={styles.readMoreButton} onPress={openBibleApp}>
+            <TouchableOpacity style={styles.readMoreButton} onPress={openScripture}>
               <Text style={styles.readMoreText}>Read Full Scripture</Text>
               <Ionicons name="arrow-forward" size={16} color="#6366f1" />
             </TouchableOpacity>

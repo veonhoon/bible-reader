@@ -57,8 +57,10 @@ export default function Users() {
 
   const fetchUsers = async () => {
     try {
+      console.log('[Users] Fetching users from Firestore...');
       const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
       const snapshot = await getDocs(q);
+      console.log('[Users] Found', snapshot.size, 'users');
       const data = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
@@ -67,8 +69,9 @@ export default function Users() {
       })) as AppUser[];
       setUsers(data);
       setFilteredUsers(data);
-    } catch (error) {
-      console.error('Error fetching users:', error);
+    } catch (error: any) {
+      console.error('[Users] Error fetching users:', error?.message || error);
+      console.error('[Users] Error code:', error?.code);
     } finally {
       setLoading(false);
     }

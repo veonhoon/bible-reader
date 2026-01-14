@@ -110,7 +110,12 @@ export const getNotificationSchedule = async (): Promise<NotificationSchedule | 
 export const subscribeToLatestWeeklyContent = (
   callback: (content: WeeklyContent | null) => void
 ): Unsubscribe => {
+  console.log('[WeeklyContent] Subscribing to content...');
+  console.log('[WeeklyContent] Firebase configured:', isFirebaseConfigured);
+  console.log('[WeeklyContent] DB available:', !!db);
+
   if (!isFirebaseConfigured || !db) {
+    console.warn('[WeeklyContent] Firebase not configured, returning null');
     callback(null);
     return noopUnsubscribe;
   }
@@ -122,13 +127,17 @@ export const subscribeToLatestWeeklyContent = (
   );
 
   return onSnapshot(q, (snapshot) => {
+    console.log('[WeeklyContent] Snapshot received, empty:', snapshot.empty);
     if (snapshot.empty) {
+      console.log('[WeeklyContent] No content found');
       callback(null);
     } else {
-      callback(docToWeeklyContent(snapshot.docs[0]));
+      const content = docToWeeklyContent(snapshot.docs[0]);
+      console.log('[WeeklyContent] Content loaded:', content.weekTitle, 'with', content.snippets?.length, 'snippets');
+      callback(content);
     }
   }, (error) => {
-    console.error('Error subscribing to weekly content:', error);
+    console.error('[WeeklyContent] Error subscribing to weekly content:', error);
     callback(null);
   });
 };
@@ -159,4 +168,84 @@ export const subscribeToNotificationSchedule = (
     console.error('Error subscribing to notification schedule:', error);
     callback(null);
   });
+};
+
+// Calculate which day of the week (0-6) since content was published
+export const getDaysSincePublish = (publishedAt: Date): number => {
+  const now = new Date();
+  const published = new Date(publishedAt);
+
+  // Reset to start of day for both
+  now.setHours(0, 0, 0, 0);
+  published.setHours(0, 0, 0, 0);
+
+  const diffTime = now.getTime() - published.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  // Return day within the week (0-6), cycle after 7 days
+  return Math.max(0, diffDays % 7);
+};
+
+// Get today's snippets from the weekly content
+export const getTodaysSnippets = (content: WeeklyContent): Snippet[] => {
+  if (!content || !content.snippets || content.snippets.length === 0) {
+    return [];
+  }
+
+  const totalSnippets = content.snippets.length;
+  const snippetsPerDay = Math.ceil(totalSnippets / 7);
+  const dayIndex = getDaysSincePublish(content.publishedAt);
+
+  const startIndex = dayIndex * snippetsPerDay;
+  const endIndex = Math.min(startIndex + snippetsPerDay, totalSnippets);
+
+  return content.snippets.slice(startIndex, endIndex);
+};
+
+// Get all snippets up to and including today (for users who want to catch up)
+export const getSnippetsUpToToday = (content: WeeklyContent): Snippet[] => {
+  if (!content || !content.snippets || content.snippets.length === 0) {
+    return [];
+  }
+
+  const totalSnippets = content.snippets.length;
+  const snippetsPerDay = Math.ceil(totalSnippets / 7);
+  const dayIndex = getDaysSincePublish(content.publishedAt);
+
+  const endIndex = Math.min((dayIndex + 1) * snippetsPerDay, totalSnippets);
+
+  return content.snippets.slice(0, endIndex);
+};
+
+// Get info about today's progress
+export interface DailyProgress {
+  currentDay: number; // 0-6 (day since publish)
+  totalDays: number; // Always 7
+  todaysSnippetCount: number;
+  totalSnippetsAvailable: number; // Snippets available up to today
+  totalSnippets: number; // All snippets in the week
+}
+
+export const getDailyProgress = (content: WeeklyContent): DailyProgress => {
+  if (!content || !content.snippets) {
+    return {
+      currentDay: 0,
+      totalDays: 7,
+      todaysSnippetCount: 0,
+      totalSnippetsAvailable: 0,
+      totalSnippets: 0,
+    };
+  }
+
+  const dayIndex = getDaysSincePublish(content.publishedAt);
+  const todaysSnippets = getTodaysSnippets(content);
+  const availableSnippets = getSnippetsUpToToday(content);
+
+  return {
+    currentDay: dayIndex,
+    totalDays: 7,
+    todaysSnippetCount: todaysSnippets.length,
+    totalSnippetsAvailable: availableSnippets.length,
+    totalSnippets: content.snippets.length,
+  };
 };

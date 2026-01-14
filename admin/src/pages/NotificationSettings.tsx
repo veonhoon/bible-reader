@@ -1,311 +1,278 @@
 import { useState, useEffect } from 'react';
 import {
   Bell,
-  Save,
   Loader2,
   CheckCircle,
   AlertCircle,
-  Info,
-  Clock,
-  Calendar,
-  Plus,
-  Trash2,
+  Send,
+  Smartphone,
+  RefreshCw,
 } from 'lucide-react';
-import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import {
+  doc,
+  getDoc,
+  collection,
+  query,
+  orderBy,
+  limit,
+  getDocs,
+  onSnapshot,
+} from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '../config/firebase';
+import Layout from '../components/Layout';
 
-interface NotificationSchedule {
-  perDay: number;
-  days: string[];
-  times: string[];
+interface Snippet {
+  id: string;
+  title: string;
+  subtitle: string;
+  body: string;
+  snippet: string;
+  scripture: {
+    reference: string;
+    text: string;
+  };
 }
 
-const DAYS_OF_WEEK = [
-  { key: 'Mon', label: 'Monday' },
-  { key: 'Tue', label: 'Tuesday' },
-  { key: 'Wed', label: 'Wednesday' },
-  { key: 'Thu', label: 'Thursday' },
-  { key: 'Fri', label: 'Friday' },
-  { key: 'Sat', label: 'Saturday' },
-  { key: 'Sun', label: 'Sunday' },
-];
+interface WeeklyContent {
+  id: string;
+  weekTitle: string;
+  snippets: Snippet[];
+}
 
-const DEFAULT_SCHEDULE: NotificationSchedule = {
-  perDay: 1,
-  days: ['Mon', 'Wed', 'Fri'],
-  times: ['09:00'],
-};
+interface TestDevice {
+  pushToken: string;
+  platform: string;
+  registeredAt: any;
+}
 
 export default function NotificationSettings() {
-  const [schedule, setSchedule] = useState<NotificationSchedule>(DEFAULT_SCHEDULE);
+  const [device, setDevice] = useState<TestDevice | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [lastSentSnippet, setLastSentSnippet] = useState<Snippet | null>(null);
 
-  // Load schedule from Firebase
+  // Listen for device registration in real-time
   useEffect(() => {
-    const loadSchedule = async () => {
-      try {
-        const docRef = doc(db, 'adminSettings', 'notificationSchedule');
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setSchedule({
-            perDay: data.perDay || 1,
-            days: data.days || DEFAULT_SCHEDULE.days,
-            times: data.times || DEFAULT_SCHEDULE.times,
-          });
-        }
-      } catch (error) {
-        console.error('Error loading schedule:', error);
-        setStatus({ type: 'error', message: 'Failed to load notification settings' });
-      } finally {
-        setIsLoading(false);
+    const docRef = doc(db, 'adminSettings', 'testDevice');
+
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setDevice(docSnap.data() as TestDevice);
+      } else {
+        setDevice(null);
       }
-    };
-    loadSchedule();
+      setIsLoading(false);
+    }, (error) => {
+      console.error('Error listening to device:', error);
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  // Save schedule to Firebase
-  const handleSave = async () => {
-    // Validate
-    if (schedule.days.length === 0) {
-      setStatus({ type: 'error', message: 'Please select at least one day' });
-      return;
+  // Get random snippet from latest content
+  const getRandomSnippet = async (): Promise<Snippet | null> => {
+    try {
+      const q = query(
+        collection(db, 'weeklyContent'),
+        orderBy('publishedAt', 'desc'),
+        limit(1)
+      );
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        return null;
+      }
+
+      const content = snapshot.docs[0].data() as WeeklyContent;
+      if (!content.snippets || content.snippets.length === 0) {
+        return null;
+      }
+
+      // Pick random snippet
+      const randomIndex = Math.floor(Math.random() * content.snippets.length);
+      return content.snippets[randomIndex];
+    } catch (error) {
+      console.error('Error fetching snippet:', error);
+      return null;
     }
-    if (schedule.times.length === 0) {
-      setStatus({ type: 'error', message: 'Please add at least one notification time' });
-      return;
-    }
-    if (schedule.times.length !== schedule.perDay) {
-      setStatus({ type: 'error', message: `Please set exactly ${schedule.perDay} notification time(s)` });
+  };
+
+  // Send test notification
+  const handleSendTestNotification = async () => {
+    if (!device?.pushToken) {
+      setStatus({ type: 'error', message: 'No device registered. Open the mobile app first.' });
       return;
     }
 
-    setIsSaving(true);
+    setIsSending(true);
     setStatus(null);
+    setLastSentSnippet(null);
 
     try {
-      const docRef = doc(db, 'adminSettings', 'notificationSchedule');
-      await setDoc(docRef, {
-        ...schedule,
-        updatedAt: Timestamp.now(),
+      console.log('[Notification] Starting to send test notification');
+      console.log('[Notification] Push token:', device.pushToken);
+
+      // Get random snippet
+      const snippet = await getRandomSnippet();
+      console.log('[Notification] Got snippet:', snippet?.title);
+
+      if (!snippet) {
+        setStatus({ type: 'error', message: 'No snippets found. Please publish some content first.' });
+        setIsSending(false);
+        return;
+      }
+
+      console.log('[Notification] Sending via Cloud Function...');
+
+      // Send notification via Firebase Cloud Function (avoids CORS)
+      const sendPushNotification = httpsCallable(functions, 'sendPushNotification');
+      const result = await sendPushNotification({
+        pushToken: device.pushToken,
+        title: snippet.title,
+        body: snippet.body,
+        snippetId: snippet.id,
       });
-      setStatus({ type: 'success', message: 'Notification schedule saved!' });
-      setTimeout(() => setStatus(null), 3000);
-    } catch (error) {
-      setStatus({ type: 'error', message: 'Failed to save schedule' });
+
+      console.log('Push notification result:', result.data);
+      setLastSentSnippet(snippet);
+      setStatus({ type: 'success', message: 'Test notification sent!' });
+    } catch (error: any) {
+      console.error('Error sending notification:', error);
+      const errorMessage = error?.message || String(error);
+      setStatus({ type: 'error', message: `Failed: ${errorMessage}` });
     } finally {
-      setIsSaving(false);
+      setIsSending(false);
     }
   };
 
-  // Toggle day selection
-  const toggleDay = (day: string) => {
-    if (schedule.days.includes(day)) {
-      setSchedule({ ...schedule, days: schedule.days.filter((d) => d !== day) });
-    } else {
-      setSchedule({ ...schedule, days: [...schedule.days, day] });
-    }
+  const formatDate = (timestamp: any) => {
+    if (!timestamp) return 'Unknown';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleString();
   };
-
-  // Update perDay and adjust times array
-  const updatePerDay = (value: number) => {
-    const newTimes = [...schedule.times];
-    while (newTimes.length < value) {
-      // Add default times
-      const lastTime = newTimes[newTimes.length - 1] || '09:00';
-      const [hours] = lastTime.split(':').map(Number);
-      const newHour = Math.min(hours + 4, 21); // Add 4 hours, max 9pm
-      newTimes.push(`${String(newHour).padStart(2, '0')}:00`);
-    }
-    while (newTimes.length > value) {
-      newTimes.pop();
-    }
-    setSchedule({ ...schedule, perDay: value, times: newTimes });
-  };
-
-  // Update a time
-  const updateTime = (index: number, value: string) => {
-    const newTimes = [...schedule.times];
-    newTimes[index] = value;
-    setSchedule({ ...schedule, times: newTimes });
-  };
-
-  // Calculate total notifications
-  const totalPerWeek = schedule.days.length * schedule.perDay;
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
+      <Layout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </Layout>
     );
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Bell className="w-6 h-6 text-primary" />
-          Notification Schedule
-        </h1>
-        <p className="text-gray-600 mt-1">
-          Configure when users receive notifications
-        </p>
-      </div>
-
-      {/* Status Message */}
-      {status && (
-        <div
-          className={`px-4 py-3 rounded-lg flex items-center gap-2 ${
-            status.type === 'success'
-              ? 'bg-green-50 border border-green-200 text-green-700'
-              : 'bg-red-50 border border-red-200 text-red-700'
-          }`}
-        >
-          {status.type === 'success' ? (
-            <CheckCircle className="w-5 h-5 flex-shrink-0" />
-          ) : (
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-          )}
-          {status.message}
-        </div>
-      )}
-
-      {/* Info Box */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-        <div className="flex items-start gap-3">
-          <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-blue-800">
-            <p>
-              These settings control when notifications are sent to all users who have
-              notifications enabled. The mobile app reads this schedule to deliver
-              snippets at the configured times.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Schedule Settings */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
-        {/* Notifications Per Day */}
+    <Layout>
+      <div className="space-y-6 max-w-2xl">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-            <Clock className="w-4 h-4 text-gray-400" />
-            Notifications Per Day
-          </label>
-          <select
-            value={schedule.perDay}
-            onChange={(e) => updatePerDay(Number(e.target.value))}
-            className="w-full max-w-xs px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-          >
-            <option value={1}>1 notification</option>
-            <option value={2}>2 notifications</option>
-            <option value={3}>3 notifications</option>
-          </select>
-        </div>
-
-        {/* Days of Week */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-gray-400" />
-            Active Days
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {DAYS_OF_WEEK.map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => toggleDay(key)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  schedule.days.includes(key)
-                    ? 'bg-primary text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-gray-400 mt-2">
-            {schedule.days.length} day{schedule.days.length !== 1 ? 's' : ''} selected
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Bell className="w-6 h-6 text-primary" />
+            Test Notifications
+          </h1>
+          <p className="text-gray-600 mt-1">
+            Send test notifications to your device
           </p>
         </div>
 
-        {/* Notification Times */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Notification Times
-          </label>
-          <div className="space-y-2">
-            {schedule.times.map((time, index) => (
-              <div key={index} className="flex items-center gap-3">
-                <span className="text-sm text-gray-500 w-24">
-                  {index === 0 ? 'Morning' : index === 1 ? 'Afternoon' : 'Evening'}:
-                </span>
-                <input
-                  type="time"
-                  value={time}
-                  onChange={(e) => updateTime(index, e.target.value)}
-                  className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
-                <span className="text-xs text-gray-400">
-                  {formatTime12(time)}
-                </span>
-              </div>
-            ))}
+        {/* Status Message */}
+        {status && (
+          <div
+            className={`px-4 py-3 rounded-lg flex items-center gap-2 ${
+              status.type === 'success'
+                ? 'bg-green-50 border border-green-200 text-green-700'
+                : 'bg-red-50 border border-red-200 text-red-700'
+            }`}
+          >
+            {status.type === 'success' ? (
+              <CheckCircle className="w-5 h-5 flex-shrink-0" />
+            ) : (
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            )}
+            {status.message}
           </div>
-        </div>
-
-        {/* Summary */}
-        <div className="bg-gray-50 rounded-lg p-4">
-          <h4 className="font-medium text-gray-900 mb-2">Schedule Summary</h4>
-          <div className="text-sm text-gray-600 space-y-1">
-            <p>
-              <span className="font-medium">{totalPerWeek}</span> notifications per week
-            </p>
-            <p>
-              <span className="font-medium">{schedule.perDay}</span> notification{schedule.perDay !== 1 ? 's' : ''} per day on{' '}
-              <span className="font-medium">
-                {schedule.days.length > 0 ? schedule.days.join(', ') : 'no days selected'}
-              </span>
-            </p>
-            <p>
-              Times:{' '}
-              <span className="font-medium">
-                {schedule.times.map(formatTime12).join(', ') || 'none set'}
-              </span>
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Save Button */}
-      <button
-        onClick={handleSave}
-        disabled={isSaving}
-        className="w-full bg-primary text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors disabled:opacity-50"
-      >
-        {isSaving ? (
-          <>
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Saving...
-          </>
-        ) : (
-          <>
-            <Save className="w-5 h-5" />
-            Save Schedule
-          </>
         )}
-      </button>
-    </div>
-  );
-}
 
-// Helper to format 24h to 12h time
-function formatTime12(time: string): string {
-  const [hours, minutes] = time.split(':').map(Number);
-  const h = hours % 12 || 12;
-  const ampm = hours >= 12 ? 'PM' : 'AM';
-  return `${h}:${String(minutes).padStart(2, '0')} ${ampm}`;
+        {/* Device Status */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-gray-700">
+              <Smartphone className="w-5 h-5" />
+              <h2 className="font-semibold">Test Device</h2>
+            </div>
+            {device && (
+              <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                <CheckCircle className="w-3 h-3" />
+                Connected
+              </span>
+            )}
+          </div>
+
+          {device ? (
+            <div className="space-y-2">
+              <div className="bg-gray-50 rounded-lg p-3 space-y-1">
+                <p className="text-xs text-gray-500">Push Token</p>
+                <p className="text-xs font-mono text-gray-700 break-all">
+                  {device.pushToken}
+                </p>
+              </div>
+              <div className="flex items-center gap-4 text-xs text-gray-500">
+                <span>Platform: <strong className="text-gray-700">{device.platform}</strong></span>
+                <span>Registered: <strong className="text-gray-700">{formatDate(device.registeredAt)}</strong></span>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-6">
+              <Smartphone className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500 font-medium">No device registered</p>
+              <p className="text-sm text-gray-400 mt-1">
+                Open the mobile app to automatically register your device
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Test Notification Button */}
+        <button
+          onClick={handleSendTestNotification}
+          disabled={isSending || !device?.pushToken}
+          className="w-full bg-primary text-white py-4 rounded-xl font-semibold flex items-center justify-center gap-3 hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-lg"
+        >
+          {isSending ? (
+            <>
+              <Loader2 className="w-6 h-6 animate-spin" />
+              Sending...
+            </>
+          ) : (
+            <>
+              <Send className="w-6 h-6" />
+              Test Notification
+            </>
+          )}
+        </button>
+
+        {!device?.pushToken && (
+          <p className="text-sm text-center text-gray-400">
+            Open the mobile app to register your device
+          </p>
+        )}
+
+        {/* Last Sent Snippet */}
+        {lastSentSnippet && (
+          <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 space-y-2">
+            <h3 className="text-sm font-medium text-gray-500">Last Sent Snippet</h3>
+            <p className="font-semibold text-gray-900">{lastSentSnippet.title}</p>
+            <p className="text-sm text-gray-600">{lastSentSnippet.body}</p>
+            {lastSentSnippet.scripture && (
+              <p className="text-xs text-primary">
+                {lastSentSnippet.scripture.reference}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </Layout>
+  );
 }

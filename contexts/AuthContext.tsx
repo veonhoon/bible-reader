@@ -187,18 +187,28 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   // Sign in with Google
   const signInWithGoogle = useCallback(async () => {
+    console.log('[Auth] signInWithGoogle called');
+    console.log('[Auth] isFirebaseConfigured:', isFirebaseConfigured);
+    console.log('[Auth] auth:', !!auth);
+    console.log('[Auth] promptGoogleAsync:', !!promptGoogleAsync);
     setError(null);
     if (!isFirebaseConfigured || !auth) {
-      setError('Firebase is not configured. Please set up your .env file with Firebase credentials.');
+      const errorMsg = 'Firebase is not configured. Please set up your .env file with Firebase credentials.';
+      console.log('[Auth] Setting error:', errorMsg);
+      setError(errorMsg);
       return;
     }
     if (!promptGoogleAsync) {
-      setError('Google Sign-In requires a development build. Please build the app with expo-dev-client.');
+      const errorMsg = 'Google Sign-In requires a development build. Please use Email sign-in for now.';
+      console.log('[Auth] Setting error:', errorMsg);
+      setError(errorMsg);
       return;
     }
     try {
+      console.log('[Auth] Calling promptGoogleAsync');
       await promptGoogleAsync();
     } catch (err: any) {
+      console.log('[Auth] Error from promptGoogleAsync:', err);
       setError(err.message);
     }
   }, [promptGoogleAsync]);

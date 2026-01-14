@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import Layout from '../components/Layout';
 
 const DEFAULT_PROMPT = `Break this document into many small, digestible teaching snippets. Each snippet should be ONE standalone idea, thought, or takeaway.
 
@@ -94,13 +95,16 @@ export default function PromptSettings() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
+      <Layout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </Layout>
     );
   }
 
   return (
+    <Layout>
     <div className="space-y-6 max-w-4xl">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
@@ -219,5 +223,6 @@ export default function PromptSettings() {
         </pre>
       </div>
     </div>
+    </Layout>
   );
 }

@@ -49,7 +49,7 @@ export async function analyzeDocument(
 
 IMPORTANT: Do NOT summarize the document. Instead, extract MANY individual teaching points, thoughts, and takeaways - one idea per snippet. A typical document should yield 30-60+ snippets.
 
-You MUST respond with valid JSON only - no markdown, no code blocks, just pure JSON.
+CRITICAL: You MUST respond with ONLY valid JSON. No markdown formatting, no code blocks, no backticks, no explanation text - ONLY the raw JSON object starting with { and ending with }.
 
 The JSON structure must be:
 {
@@ -96,7 +96,8 @@ ${documentText}
 Remember:
 - Extract MANY snippets (30-60+), not just a few
 - Each snippet is ONE teaching point
-- Respond with valid JSON only, no markdown formatting`;
+- Respond with ONLY the JSON object, starting with { and ending with }
+- NO markdown, NO code blocks, NO backticks, NO explanations`;
 
   try {
     const response = await fetch(CLAUDE_API_URL, {
@@ -131,20 +132,46 @@ Remember:
     const data = await response.json();
     const rawContent = data.content?.[0]?.text || '';
 
+    // Log raw response for debugging
+    console.log('Claude raw response length:', rawContent.length);
+    console.log('Claude raw response preview:', rawContent.substring(0, 500));
+
     // Try to parse the JSON response
     try {
-      // Remove any potential markdown code blocks
+      // Remove any potential markdown code blocks and find JSON
       let jsonStr = rawContent.trim();
+
+      // Try multiple ways to extract JSON
+      // Method 1: Remove markdown code blocks
       if (jsonStr.startsWith('```json')) {
         jsonStr = jsonStr.slice(7);
-      }
-      if (jsonStr.startsWith('```')) {
+      } else if (jsonStr.startsWith('```')) {
         jsonStr = jsonStr.slice(3);
       }
       if (jsonStr.endsWith('```')) {
         jsonStr = jsonStr.slice(0, -3);
       }
       jsonStr = jsonStr.trim();
+
+      // Method 2: If still not valid JSON, try to find JSON object in the string
+      if (!jsonStr.startsWith('{')) {
+        const jsonStart = jsonStr.indexOf('{');
+        const jsonEnd = jsonStr.lastIndexOf('}');
+        if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+          jsonStr = jsonStr.substring(jsonStart, jsonEnd + 1);
+        }
+      }
+
+      // Method 3: Handle truncated JSON by checking if it ends properly
+      if (!jsonStr.endsWith('}')) {
+        // Try to find the last complete object
+        const lastBrace = jsonStr.lastIndexOf('}');
+        if (lastBrace !== -1) {
+          jsonStr = jsonStr.substring(0, lastBrace + 1);
+        }
+      }
+
+      console.log('Attempting to parse JSON of length:', jsonStr.length);
 
       const parsed = JSON.parse(jsonStr) as WeeklyContentOutput;
 
@@ -164,15 +191,19 @@ Remember:
         isScheduled: false,
       }));
 
+      console.log('Successfully parsed', parsed.snippets.length, 'snippets');
+
       return {
         success: true,
         data: parsed,
         rawResponse: rawContent,
       };
     } catch (parseError) {
+      console.error('JSON parse error:', parseError);
+      console.log('Raw content that failed to parse:', rawContent.substring(0, 1000));
       return {
         success: false,
-        error: 'Failed to parse Claude response as JSON',
+        error: `Failed to parse Claude response as JSON: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`,
         rawResponse: rawContent,
       };
     }

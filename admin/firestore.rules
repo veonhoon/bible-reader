@@ -1,0 +1,39 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Admin settings - anyone can read, authenticated users can write
+    match /adminSettings/{document} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Weekly content - everyone can read, authenticated users can write
+    match /weeklyContent/{document} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Document history - authenticated users (admins) can read/write
+    match /documentHistory/{document} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // Users collection - authenticated users can read all, write their own
+    match /users/{userId} {
+      // Any authenticated user can read all users (for admin panel)
+      allow read: if request.auth != null;
+      // Users can write their own document
+      allow write: if request.auth != null && request.auth.uid == userId;
+      // Allow any authenticated user to update (for admin setting premium)
+      allow update: if request.auth != null;
+    }
+
+    // Devices collection - for push notification tokens
+    match /devices/{deviceId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+  }
+}
