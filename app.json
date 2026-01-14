@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "Bible Teacher",
-    "slug": "calm-bible-reader",
+    "slug": "bible-teacher",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "rork-app",
+    "scheme": "bible-teacher",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.rork.bible-teacher",
+      "bundleIdentifier": "com.deonveon.bibleteacher",
       "usesAppleSignIn": true,
       "infoPlist": {
         "UIBackgroundModes": [
@@ -29,7 +29,7 @@
       [
         "expo-router",
         {
-          "origin": "https://rork.com/"
+          "origin": "https://bibleteacher.app/"
         }
       ],
       "expo-font",
@@ -48,7 +48,7 @@
     },
     "extra": {
       "router": {
-        "origin": "https://rork.com/"
+        "origin": "https://bibleteacher.app/"
       },
       "eas": {
         "projectId": "9bd32cad-5ea1-4e8c-ad2b-3d9302939bbe"
