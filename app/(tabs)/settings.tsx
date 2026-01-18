@@ -8,11 +8,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Sun, Moon, BookOpen, ChevronRight, Bell, Crown, Clock, User, LogOut, Mail, Bookmark, Heart } from 'lucide-react-native';
+import { Sun, Moon, BookOpen, ChevronRight, Bell, Crown, Clock, User, LogOut, Mail, Bookmark, Heart, Globe } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useLanguage, AppLanguage } from '@/contexts/LanguageContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { ThemeMode } from '@/constants/colors';
+import { useTranslation } from '@/hooks/useTranslation';
 
 const THEME_OPTIONS: { mode: ThemeMode; label: string; icon: typeof Sun }[] = [
   { mode: 'light', label: 'Light', icon: Sun },
@@ -20,8 +22,15 @@ const THEME_OPTIONS: { mode: ThemeMode; label: string; icon: typeof Sun }[] = [
   { mode: 'sepia', label: 'Sepia', icon: BookOpen },
 ];
 
+const LANGUAGE_OPTIONS: { lang: AppLanguage; label: string; nativeLabel: string }[] = [
+  { lang: 'en', label: 'English', nativeLabel: 'English' },
+  { lang: 'ko', label: 'Korean', nativeLabel: '한국어' },
+];
+
 export default function SettingsScreen() {
   const { colors, mode, setThemeMode } = useTheme();
+  const { language, setLanguage } = useLanguage();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const {
@@ -72,12 +81,53 @@ export default function SettingsScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.title, { color: colors.text }]}>Settings</Text>
+        <Text style={[styles.title, { color: colors.text }]}>{t('settings')}</Text>
 
-        {/* 1. Reading Mode - at the top */}
+        {/* 1. Language - at the top */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-            READING MODE
+            {t('language').toUpperCase()}
+          </Text>
+
+          <View style={[styles.themeContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {LANGUAGE_OPTIONS.map((option) => {
+              const isActive = language === option.lang;
+
+              return (
+                <TouchableOpacity
+                  key={option.lang}
+                  style={[
+                    styles.themeOption,
+                    isActive && { backgroundColor: colors.accent + '15' },
+                  ]}
+                  onPress={() => setLanguage(option.lang)}
+                  testID={`language-${option.lang}`}
+                >
+                  <Globe
+                    color={isActive ? colors.accent : colors.textMuted}
+                    size={24}
+                  />
+                  <Text
+                    style={[
+                      styles.themeLabel,
+                      { color: isActive ? colors.accent : colors.text },
+                    ]}
+                  >
+                    {option.nativeLabel}
+                  </Text>
+                  {isActive && (
+                    <View style={[styles.activeIndicator, { backgroundColor: colors.accent }]} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* 2. Reading Mode */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
+            {t('readingMode').toUpperCase()}
           </Text>
 
           <View style={[styles.themeContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -105,7 +155,7 @@ export default function SettingsScreen() {
                       { color: isActive ? colors.accent : colors.text },
                     ]}
                   >
-                    {option.label}
+                    {t(option.label.toLowerCase())}
                   </Text>
                   {isActive && (
                     <View style={[styles.activeIndicator, { backgroundColor: colors.accent }]} />
@@ -116,7 +166,7 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* 2. Saved Scriptures and Highlights */}
+        {/* 3. Saved Scriptures and Highlights */}
         <View style={styles.section}>
           <View style={[styles.menuContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <TouchableOpacity
@@ -130,10 +180,10 @@ export default function SettingsScreen() {
                 </View>
                 <View>
                   <Text style={[styles.menuItemTitle, { color: colors.text }]}>
-                    Saved Scriptures & Highlights
+                    {t('savedScriptures')}
                   </Text>
                   <Text style={[styles.menuItemSubtitle, { color: colors.textMuted }]}>
-                    View your bookmarks and highlights
+                    {t('viewBookmarks')}
                   </Text>
                 </View>
               </View>
@@ -142,7 +192,7 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* 3. Enable Reminders and Push Notifications */}
+        {/* 4. Enable Reminders and Push Notifications */}
         <View style={styles.section}>
           <View style={[styles.menuContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <TouchableOpacity
@@ -156,10 +206,10 @@ export default function SettingsScreen() {
                 </View>
                 <View>
                   <Text style={[styles.menuItemTitle, { color: colors.text }]}>
-                    Reminders & Notifications
+                    {t('reminders')}
                   </Text>
                   <Text style={[styles.menuItemSubtitle, { color: colors.textMuted }]}>
-                    {isSubscribed ? 'Manage your reminders' : 'Enable push notifications'}
+                    {isSubscribed ? t('manageReminders') : t('enableNotifications')}
                   </Text>
                 </View>
               </View>
@@ -168,26 +218,26 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* 4. Reading is always free */}
+        {/* 5. Reading is always free */}
         <View style={[styles.freeNotice, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
           <BookOpen color={colors.textMuted} size={18} />
           <Text style={[styles.freeNoticeText, { color: colors.textSecondary }]}>
-            Reading is always free.
+            {t('readingIsFree')}
           </Text>
         </View>
 
-        {/* 5. Made with faith and love */}
+        {/* 6. Made with faith and love */}
         <View style={styles.madeWithLove}>
           <Heart color={colors.textMuted} size={16} fill={colors.textMuted} />
           <Text style={[styles.madeWithLoveText, { color: colors.textMuted }]}>
-            Made with faith and love
+            {t('madeWithLove')}
           </Text>
         </View>
 
-        {/* 6. Account Section - at the bottom */}
+        {/* 7. Account Section - at the bottom */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-            ACCOUNT
+            {t('account').toUpperCase()}
           </Text>
 
           {isAuthenticated && user ? (
@@ -215,7 +265,7 @@ export default function SettingsScreen() {
                     {user.isPremium && (
                       <View style={[styles.premiumBadge, { backgroundColor: colors.gold }]}>
                         <Crown color="#FFFFFF" size={10} />
-                        <Text style={styles.premiumText}>Premium</Text>
+                        <Text style={styles.premiumText}>{t('premium')}</Text>
                       </View>
                     )}
                   </View>
@@ -226,7 +276,7 @@ export default function SettingsScreen() {
                 onPress={handleLogout}
               >
                 <LogOut color={colors.error} size={18} />
-                <Text style={[styles.logoutText, { color: colors.error }]}>Sign Out</Text>
+                <Text style={[styles.logoutText, { color: colors.error }]}>{t('signOut')}</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -240,10 +290,10 @@ export default function SettingsScreen() {
                 </View>
                 <View style={styles.signInTextContainer}>
                   <Text style={[styles.signInTitle, { color: colors.text }]}>
-                    Sign In
+                    {t('signIn')}
                   </Text>
                   <Text style={[styles.signInSubtitle, { color: colors.textSecondary }]}>
-                    Sync your progress across devices
+                    {t('syncProgress')}
                   </Text>
                 </View>
               </View>

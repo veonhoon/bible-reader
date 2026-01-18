@@ -26,14 +26,14 @@ export default function Layout({ children }: LayoutProps) {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-primary)' }}>
       {/* Sidebar */}
-      <aside className="fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200">
+      <aside className="fixed inset-y-0 left-0 w-64" style={{ backgroundColor: 'var(--bg-secondary)', borderRight: '1px solid var(--border)' }}>
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="p-6 border-b border-gray-200">
+          <div className="p-6" style={{ borderBottom: '1px solid var(--border)' }}>
             <h1 className="text-xl font-bold text-primary">Bible Teacher</h1>
-            <p className="text-sm text-gray-500">Admin Panel</p>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Admin Panel</p>
           </div>
 
           {/* Navigation */}
@@ -46,9 +46,10 @@ export default function Layout({ children }: LayoutProps) {
                   `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                     isActive
                       ? 'bg-primary text-white'
-                      : 'text-gray-700 hover:bg-gray-100'
+                      : ''
                   }`
                 }
+                style={({ isActive }) => isActive ? {} : { color: 'var(--text-primary)' }}
               >
                 <item.icon size={20} />
                 <span className="font-medium">{item.label}</span>
@@ -57,16 +58,17 @@ export default function Layout({ children }: LayoutProps) {
           </nav>
 
           {/* User section */}
-          <div className="p-4 border-t border-gray-200">
+          <div className="p-4" style={{ borderTop: '1px solid var(--border)' }}>
             <div className="mb-3 px-4">
-              <p className="text-sm text-gray-500">Signed in as</p>
-              <p className="text-sm font-medium text-gray-900 truncate">
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Signed in as</p>
+              <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>
                 {user?.email}
               </p>
             </div>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-3 w-full px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              className="flex items-center gap-3 w-full px-4 py-3 rounded-lg transition-colors hover:opacity-70"
+              style={{ color: 'var(--text-primary)' }}
             >
               <LogOut size={20} />
               <span className="font-medium">Logout</span>

@@ -3,6 +3,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { BookOpen, Users, Calendar, Star, Sparkles } from 'lucide-react';
 import Layout from '../components/Layout';
+import MobilePreview from '../components/MobilePreview';
 
 interface Stats {
   weeklyContent: number;
@@ -101,7 +102,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
             <div className="space-y-3">
@@ -154,6 +155,8 @@ export default function Dashboard() {
               <p>5. Premium users receive push notifications</p>
             </div>
           </div>
+
+          <MobilePreview />
         </div>
       </div>
     </Layout>

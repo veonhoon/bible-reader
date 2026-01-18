@@ -12,6 +12,7 @@ import {
 import { db } from '../config/firebase';
 import Layout from '../components/Layout';
 import { Save, RefreshCw } from 'lucide-react';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface AppSettings {
   featuredScriptureId: string;
@@ -26,6 +27,7 @@ interface Scripture {
 }
 
 export default function Settings() {
+  const { theme, setTheme } = useTheme();
   const [settings, setSettings] = useState<AppSettings>({
     featuredScriptureId: '',
     dailyVerseId: '',
@@ -46,7 +48,11 @@ export default function Settings() {
       // Fetch current settings
       const settingsDoc = await getDoc(doc(db, 'settings', 'app_config'));
       if (settingsDoc.exists()) {
-        setSettings(settingsDoc.data() as AppSettings);
+        const data = settingsDoc.data() as AppSettings;
+        console.log('Loaded settings from Firebase:', data);
+        setSettings(data);
+      } else {
+        console.log('No settings document found, using defaults');
       }
 
       // Fetch scriptures for dropdowns
@@ -68,10 +74,12 @@ export default function Settings() {
     setMessage('');
 
     try {
+      console.log('Saving settings to Firebase:', settings);
       await setDoc(doc(db, 'settings', 'app_config'), {
         ...settings,
         updatedAt: Timestamp.now(),
       });
+      console.log('Settings saved successfully');
       setMessage('Settings saved successfully!');
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
@@ -184,15 +192,18 @@ export default function Settings() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Default App Theme
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Theme
                 </label>
+                <p className="text-sm text-gray-600 mb-3">
+                  Changes admin panel theme and sets default for mobile app
+                </p>
                 <div className="flex gap-4">
-                  {(['light', 'dark', 'sepia'] as const).map((theme) => (
+                  {(['light', 'dark', 'sepia'] as const).map((themeOption) => (
                     <label
-                      key={theme}
+                      key={themeOption}
                       className={`flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer transition-colors ${
-                        settings.appTheme === theme
+                        theme === themeOption
                           ? 'border-primary bg-primary/5 text-primary'
                           : 'border-gray-300 hover:bg-gray-50'
                       }`}
@@ -200,19 +211,22 @@ export default function Settings() {
                       <input
                         type="radio"
                         name="theme"
-                        value={theme}
-                        checked={settings.appTheme === theme}
-                        onChange={(e) => setSettings({ ...settings, appTheme: e.target.value as AppSettings['appTheme'] })}
+                        value={themeOption}
+                        checked={theme === themeOption}
+                        onChange={(e) => {
+                          const newTheme = e.target.value as AppSettings['appTheme'];
+                          console.log('Theme changed to:', newTheme);
+                          setTheme(newTheme);
+                          setSettings({ ...settings, appTheme: newTheme });
+                        }}
                         className="sr-only"
                       />
-                      <div
-                        className={`w-4 h-4 rounded-full border-2 ${
-                          theme === 'light' ? 'bg-gray-100 border-gray-300' :
-                          theme === 'dark' ? 'bg-gray-800 border-gray-600' :
-                          'bg-amber-100 border-amber-300'
-                        }`}
-                      />
-                      <span className="capitalize font-medium">{theme}</span>
+                      <div className="relative w-5 h-5 rounded-full border-2 border-current flex items-center justify-center">
+                        {theme === themeOption && (
+                          <div className="w-2.5 h-2.5 rounded-full bg-current" />
+                        )}
+                      </div>
+                      <span className="capitalize font-medium">{themeOption}</span>
                     </label>
                   ))}
                 </div>

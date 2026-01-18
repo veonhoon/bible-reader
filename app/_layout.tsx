@@ -5,6 +5,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { View, ActivityIndicator } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 
 import { BookmarksProvider, useBookmarks } from "@/contexts/BookmarksContext";
 import { SubscriptionProvider, useSubscription } from "@/contexts/SubscriptionContext";
@@ -192,23 +193,25 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <ThemeProvider>
-          <AuthProvider>
-            <SubscriptionProvider>
-              <AdminProvider>
-                <BibleProvider>
-                  <CustomScripturesProvider>
-                    <ReadingProgressProvider>
-                      <BookmarksProvider>
-                        <RootLayoutNav />
-                      </BookmarksProvider>
-                    </ReadingProgressProvider>
-                  </CustomScripturesProvider>
-                </BibleProvider>
-              </AdminProvider>
-            </SubscriptionProvider>
-          </AuthProvider>
-        </ThemeProvider>
+        <LanguageProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <SubscriptionProvider>
+                <AdminProvider>
+                  <BibleProvider>
+                    <CustomScripturesProvider>
+                      <ReadingProgressProvider>
+                        <BookmarksProvider>
+                          <RootLayoutNav />
+                        </BookmarksProvider>
+                      </ReadingProgressProvider>
+                    </CustomScripturesProvider>
+                  </BibleProvider>
+                </AdminProvider>
+              </SubscriptionProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </LanguageProvider>
       </GestureHandlerRootView>
     </QueryClientProvider>
   );
