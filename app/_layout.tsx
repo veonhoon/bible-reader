@@ -59,19 +59,34 @@ function RootLayoutNav() {
 
   // Handle notification taps
   useEffect(() => {
+    console.log('[Notifications] Setting up notification handlers');
+
     // Handle notification tap when app is in background/closed
     const handleNotificationResponse = (response: Notifications.NotificationResponse) => {
+      console.log('[Notifications] Notification tapped!');
+      console.log('[Notifications] Response data:', JSON.stringify(response.notification.request.content.data, null, 2));
+
       const data = response.notification.request.content.data;
       if (data?.snippetId) {
-        router.push(`/snippet/${data.snippetId}`);
+        const snippetId = data.snippetId as string;
+        console.log('[Notifications] Navigating to snippet:', snippetId);
+        router.push(`/snippet/${snippetId}`);
+      } else {
+        console.warn('[Notifications] No snippetId in notification data:', data);
       }
     };
 
     // Check for initial notification (app opened from notification)
     Notifications.getLastNotificationResponseAsync().then((response) => {
+      console.log('[Notifications] Checking for initial notification...');
       if (response && !initialNotificationHandled) {
+        console.log('[Notifications] Found initial notification, handling it');
         initialNotificationHandled = true;
         handleNotificationResponse(response);
+      } else if (!response) {
+        console.log('[Notifications] No initial notification found');
+      } else {
+        console.log('[Notifications] Initial notification already handled');
       }
     });
 
@@ -80,7 +95,10 @@ function RootLayoutNav() {
       handleNotificationResponse
     );
 
+    console.log('[Notifications] Notification handlers set up successfully');
+
     return () => {
+      console.log('[Notifications] Cleaning up notification handlers');
       if (responseListener.current) {
         Notifications.removeNotificationSubscription(responseListener.current);
       }

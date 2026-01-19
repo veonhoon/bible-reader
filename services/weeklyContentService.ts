@@ -60,7 +60,12 @@ const docToWeeklyContent = (docSnap: any): WeeklyContent => {
 
 // Get the latest weekly content
 export const getLatestWeeklyContent = async (): Promise<WeeklyContent | null> => {
+  console.log('[WeeklyContent] getLatestWeeklyContent called');
+  console.log('[WeeklyContent] Firebase configured:', isFirebaseConfigured);
+  console.log('[WeeklyContent] DB available:', !!db);
+
   if (!isFirebaseConfigured || !db) {
+    console.warn('[WeeklyContent] Firebase not configured, returning null');
     return null;
   }
   try {
@@ -69,20 +74,52 @@ export const getLatestWeeklyContent = async (): Promise<WeeklyContent | null> =>
       orderBy('publishedAt', 'desc'),
       limit(1)
     );
+    console.log('[WeeklyContent] Executing query...');
     const snapshot = await getDocs(q);
-    if (snapshot.empty) return null;
-    return docToWeeklyContent(snapshot.docs[0]);
+    console.log('[WeeklyContent] Query complete. Empty:', snapshot.empty, 'Docs:', snapshot.docs.length);
+
+    if (snapshot.empty) {
+      console.log('[WeeklyContent] No content found in database');
+      return null;
+    }
+
+    const content = docToWeeklyContent(snapshot.docs[0]);
+    console.log('[WeeklyContent] Content fetched:', {
+      weekId: content.weekId,
+      weekTitle: content.weekTitle,
+      snippetCount: content.snippets?.length || 0,
+      publishedAt: content.publishedAt
+    });
+    return content;
   } catch (error) {
-    console.error('Error fetching latest weekly content:', error);
+    console.error('[WeeklyContent] Error fetching latest weekly content:', error);
+    if (error instanceof Error) {
+      console.error('[WeeklyContent] Error details:', error.message, error.stack);
+    }
     return null;
   }
 };
 
 // Get a specific snippet by ID from the latest content
 export const getSnippetById = async (snippetId: string): Promise<Snippet | null> => {
+  console.log('[WeeklyContent] getSnippetById called with ID:', snippetId);
   const content = await getLatestWeeklyContent();
-  if (!content) return null;
-  return content.snippets.find(s => s.id === snippetId) || null;
+
+  if (!content) {
+    console.log('[WeeklyContent] No content available, cannot find snippet');
+    return null;
+  }
+
+  console.log('[WeeklyContent] Searching for snippet in', content.snippets?.length || 0, 'snippets');
+  const snippet = content.snippets.find(s => s.id === snippetId) || null;
+
+  if (snippet) {
+    console.log('[WeeklyContent] Snippet found:', snippet.title);
+  } else {
+    console.log('[WeeklyContent] Snippet not found. Available IDs:', content.snippets.map(s => s.id).join(', '));
+  }
+
+  return snippet;
 };
 
 // Get the notification schedule from admin settings

@@ -13,9 +13,18 @@ export default function SnippetDetailScreen() {
 
   useEffect(() => {
     const loadSnippet = async () => {
+      console.log('[SnippetDetail] Loading snippet with ID:', id);
+
       if (id) {
         const data = await getSnippetById(id);
+        if (data) {
+          console.log('[SnippetDetail] Snippet loaded successfully:', data.title);
+        } else {
+          console.log('[SnippetDetail] Snippet not found for ID:', id);
+        }
         setSnippet(data);
+      } else {
+        console.warn('[SnippetDetail] No ID provided');
       }
       setLoading(false);
     };

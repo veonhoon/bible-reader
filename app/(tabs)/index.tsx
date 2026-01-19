@@ -55,13 +55,29 @@ export default function HomeScreen() {
 
   // Load content and notification settings
   useEffect(() => {
+    console.log('[HomeScreen] Setting up weekly content subscription');
+
     const unsubscribe = subscribeToLatestWeeklyContent((data) => {
+      console.log('[HomeScreen] Content update received:', data ? 'has data' : 'no data');
+
+      if (data) {
+        console.log('[HomeScreen] Content details:', {
+          weekId: data.weekId,
+          weekTitle: data.weekTitle,
+          totalSnippets: data.snippets?.length || 0,
+          publishedAt: data.publishedAt
+        });
+      }
+
       setContent(data);
       if (data) {
         // Get only today's snippets
-        setTodaysSnippets(getTodaysSnippets(data));
+        const todaySnippets = getTodaysSnippets(data);
+        console.log('[HomeScreen] Today\'s snippets:', todaySnippets.length, 'snippets');
+        setTodaysSnippets(todaySnippets);
         setProgress(getDailyProgress(data));
       } else {
+        console.log('[HomeScreen] No content available');
         setTodaysSnippets([]);
         setProgress(null);
       }
@@ -69,9 +85,15 @@ export default function HomeScreen() {
     });
 
     // Check notification status
-    areNotificationsEnabled().then(setNotificationsOn);
+    areNotificationsEnabled().then((enabled) => {
+      console.log('[HomeScreen] Notifications enabled:', enabled);
+      setNotificationsOn(enabled);
+    });
 
-    return () => unsubscribe();
+    return () => {
+      console.log('[HomeScreen] Cleaning up weekly content subscription');
+      unsubscribe();
+    };
   }, []);
 
   // Schedule notifications when content changes and notifications are enabled
