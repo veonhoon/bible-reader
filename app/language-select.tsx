@@ -4,20 +4,33 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { setCurrentBibleVersion } from '@/services/bibleApi';
 
 export default function LanguageSelectScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { setLanguage } = useLanguage();
 
   const selectLanguage = async (lang: 'en' | 'ko') => {
-    await AsyncStorage.setItem('userLanguage', lang);
+    // Set app language
+    await setLanguage(lang);
+    
+    // Set appropriate Bible version
+    if (lang === 'ko') {
+      await setCurrentBibleVersion('KRV');
+    } else {
+      await setCurrentBibleVersion('NIV');
+    }
+    
+    // Mark onboarding complete
     await AsyncStorage.setItem('hasCompletedOnboarding', 'true');
+    
     router.replace('/(tabs)');
   };
 

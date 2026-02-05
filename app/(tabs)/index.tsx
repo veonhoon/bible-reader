@@ -13,6 +13,8 @@ import { useRouter } from 'expo-router';
 import { BookOpen, ChevronRight, Clock, Bell, BellOff, Calendar } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useReadingProgress } from '@/contexts/ReadingProgressContext';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { useTranslation } from '@/hooks/useTranslation';
 // Bible Reader is FREE - no subscription needed
 import {
   WeeklyContent,
@@ -29,18 +31,20 @@ import {
 } from '@/services/notificationScheduler';
 
 // Format date for display
-const formatWeekDate = (date: Date): string => {
+const formatWeekDate = (date: Date, locale: string = 'en-US'): string => {
   const options: Intl.DateTimeFormatOptions = {
     month: 'long',
     day: 'numeric',
     year: 'numeric'
   };
-  return date.toLocaleDateString('en-US', options);
+  return date.toLocaleDateString(locale === 'ko' ? 'ko-KR' : 'en-US', options);
 };
 
 export default function HomeScreen() {
   const { colors } = useTheme();
   const { lastRead } = useReadingProgress();
+  const { language } = useLanguage();
+  const { t } = useTranslation();
   // Bible Reader is FREE - no subscription needed
   const isSubscribed = true; // Always true - free app
   const insets = useSafeAreaInsets();
@@ -131,7 +135,7 @@ export default function HomeScreen() {
           <View style={[styles.loadingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <ActivityIndicator size="large" color={colors.accent} />
             <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-              Loading content...
+              {t('loading')}
             </Text>
           </View>
         )}
@@ -140,10 +144,10 @@ export default function HomeScreen() {
           <View style={[styles.noContentCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <BookOpen color={colors.textMuted} size={40} />
             <Text style={[styles.noContentTitle, { color: colors.text }]}>
-              No Content Yet
+              {t('noContentYet')}
             </Text>
             <Text style={[styles.noContentText, { color: colors.textSecondary }]}>
-              Daily teachings will appear here once published. Check back soon!
+              {t('noContentMessage')}
             </Text>
           </View>
         )}
@@ -158,13 +162,13 @@ export default function HomeScreen() {
               <View style={styles.dateRow}>
                 <Calendar color={colors.textMuted} size={16} />
                 <Text style={[styles.dateText, { color: colors.textSecondary }]}>
-                  {formatWeekDate(content.publishedAt)}
+                  {formatWeekDate(content.publishedAt, language)}
                 </Text>
               </View>
               {/* Day Progress */}
               <View style={[styles.progressCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <Text style={[styles.progressTitle, { color: colors.text }]}>
-                  Day {progress.currentDay + 1} of 7
+                  {t('dayOf', { current: progress.currentDay + 1, total: 7 })}
                 </Text>
                 <View style={styles.progressBarContainer}>
                   <View
@@ -178,7 +182,7 @@ export default function HomeScreen() {
                   />
                 </View>
                 <Text style={[styles.progressSubtext, { color: colors.textSecondary }]}>
-                  {todaysSnippets.length} teachings for today
+                  {t('teachingsForToday', { count: todaysSnippets.length })}
                 </Text>
               </View>
             </View>
@@ -193,12 +197,12 @@ export default function HomeScreen() {
                 )}
                 <View style={styles.notificationText}>
                   <Text style={[styles.notificationTitle, { color: colors.text }]}>
-                    Daily Teachings
+                    {t('dailyTeachings')}
                   </Text>
                   <Text style={[styles.notificationDesc, { color: colors.textSecondary }]}>
                     {notificationsOn
-                      ? 'Receive daily scripture insights'
-                      : 'Turn on to get daily reminders'}
+                      ? t('receiveInsights')
+                      : t('getNotified')}
                   </Text>
                 </View>
                 {isTogglingNotifications ? (
@@ -216,7 +220,7 @@ export default function HomeScreen() {
 
             {/* Today's Snippets List */}
             <Text style={[styles.sectionLabel, { color: colors.text }]}>
-              Today's Teachings
+              {t('todaysTeaching')}
             </Text>
             <View style={styles.snippetsList}>
               {todaysSnippets.map((snippet, index) => (
