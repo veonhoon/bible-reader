@@ -2,7 +2,30 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BibleVerse, BibleChapter } from '@/mocks/bibleData';
 
 const API_BASE_URL = 'https://bolls.life';
-const BIBLE_VERSION = 'NIV';
+
+// Supported Bible versions
+export const BIBLE_VERSIONS = {
+  en: {
+    NIV: { name: 'NIV', fullName: 'New International Version' },
+    KJV: { name: 'KJV', fullName: 'King James Version' },
+    ESV: { name: 'ESV', fullName: 'English Standard Version' },
+  },
+  ko: {
+    KRV: { name: 'KRV', fullName: '개역개정 (Korean Revised Version)' },
+    NKRV: { name: 'NKRV', fullName: '개역한글 (New Korean Revised)' },
+  }
+} as const;
+
+// Get current Bible version from storage or default
+let currentVersion = 'NIV';
+AsyncStorage.getItem('bibleVersion').then(v => { if (v) currentVersion = v; });
+
+export const setCurrentBibleVersion = async (version: string) => {
+  currentVersion = version;
+  await AsyncStorage.setItem('bibleVersion', version);
+};
+
+export const getCurrentBibleVersion = () => currentVersion;
 
 const CACHE_PREFIX = 'bible_bolls_';
 const CACHE_EXPIRY_DAYS = 30;
@@ -104,7 +127,7 @@ export async function fetchChapter(
   bookId: string,
   chapter: number
 ): Promise<BibleChapter> {
-  const cacheKey = `${CACHE_PREFIX}${bookId}_${chapter}`;
+  const cacheKey = `${CACHE_PREFIX}${currentVersion}_${bookId}_${chapter}`;
   
   try {
     const cached = await AsyncStorage.getItem(cacheKey);
@@ -125,7 +148,7 @@ export async function fetchChapter(
     throw new Error(`Unknown book: ${bookId}`);
   }
   
-  const url = `${API_BASE_URL}/get-text/${BIBLE_VERSION}/${bookNumber}/${chapter}/`;
+  const url = `${API_BASE_URL}/get-text/${currentVersion}/${bookNumber}/${chapter}/`;
   
   console.log(`[BibleAPI] Fetching chapter: ${bookId} ${chapter}`);
   console.log(`[BibleAPI] URL: ${url}`);
