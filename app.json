@@ -1,25 +1,26 @@
 {
   "expo": {
-    "name": "Bible Teacher",
-    "slug": "calm-bible-reader",
+    "name": "Bible Reader",
+    "slug": "bible-reader",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "bible-teacher",
+    "scheme": "bible-reader",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0a0a0a"
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.deonveon.bibleteacher",
+      "bundleIdentifier": "com.deonveon.biblereader",
       "usesAppleSignIn": true,
       "infoPlist": {
         "UIBackgroundModes": [
-          "audio"
+          "audio",
+          "remote-notification"
         ],
         "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone",
         "ITSAppUsesNonExemptEncryption": false
@@ -29,7 +30,7 @@
       [
         "expo-router",
         {
-          "origin": "https://bibleteacher.app/"
+          "origin": "https://biblereader.app/"
         }
       ],
       "expo-font",
@@ -48,7 +49,7 @@
     },
     "extra": {
       "router": {
-        "origin": "https://bibleteacher.app/"
+        "origin": "https://biblereader.app/"
       },
       "eas": {
         "projectId": "9bd32cad-5ea1-4e8c-ad2b-3d9302939bbe"

@@ -43,10 +43,29 @@ function RootLayoutNav() {
   const { isLoading: progressLoading, shouldAutoNavigate, lastRead, markSessionEnded } = useReadingProgress();
   const router = useRouter();
   const [hasAutoNavigated, setHasAutoNavigated] = useState(false);
+  const [hasCheckedLanguage, setHasCheckedLanguage] = useState(false);
+  const [needsLanguageSelect, setNeedsLanguageSelect] = useState(false);
   const notificationListener = useRef<any>();
   const responseListener = useRef<any>();
 
   const isLoading = subLoading || bookmarksLoading || adminLoading || scripturesLoading || progressLoading;
+
+  // Check if language has been selected
+  useEffect(() => {
+    const checkLanguage = async () => {
+      try {
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        const hasOnboarded = await AsyncStorage.getItem('hasCompletedOnboarding');
+        if (!hasOnboarded) {
+          setNeedsLanguageSelect(true);
+        }
+      } catch (e) {
+        console.warn('[Layout] Error checking language:', e);
+      }
+      setHasCheckedLanguage(true);
+    };
+    checkLanguage();
+  }, []);
 
   // Register push token to Firestore when user is authenticated
   const { isAuthenticated } = useAuth();
@@ -106,8 +125,14 @@ function RootLayoutNav() {
   }, [router]);
 
   useEffect(() => {
-    if (!isLoading) {
+    if (!isLoading && hasCheckedLanguage) {
       SplashScreen.hideAsync();
+
+      // Redirect to language select if needed
+      if (needsLanguageSelect) {
+        router.replace('/language-select');
+        return;
+      }
 
       if (shouldAutoNavigate && lastRead && !hasAutoNavigated) {
         console.log('[Layout] Auto-navigating to last read:', lastRead);
@@ -116,9 +141,9 @@ function RootLayoutNav() {
         router.push(`/reader?bookId=${lastRead.bookId}&chapter=${lastRead.chapter}`);
       }
     }
-  }, [isLoading, shouldAutoNavigate, lastRead, hasAutoNavigated, markSessionEnded, router]);
+  }, [isLoading, hasCheckedLanguage, needsLanguageSelect, shouldAutoNavigate, lastRead, hasAutoNavigated, markSessionEnded, router]);
 
-  if (isLoading) {
+  if (isLoading || !hasCheckedLanguage) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
         <ActivityIndicator size="large" color="#FFFFFF" />
@@ -130,6 +155,26 @@ function RootLayoutNav() {
     <>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen 
+          name="language-select" 
+          options={{ 
+            headerShown: false,
+          }} 
+        />
+        <Stack.Screen 
+          name="privacy-policy" 
+          options={{ 
+            headerShown: false,
+            presentation: 'card',
+          }} 
+        />
+        <Stack.Screen 
+          name="terms-of-use" 
+          options={{ 
+            headerShown: false,
+            presentation: 'card',
+          }} 
+        />
         <Stack.Screen 
           name="reader" 
           options={{ 
