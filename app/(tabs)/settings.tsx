@@ -11,7 +11,7 @@ import { useRouter } from 'expo-router';
 import { Sun, Moon, BookOpen, ChevronRight, Bell, Crown, Clock, User, LogOut, Mail, Bookmark, Heart, Globe } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage, AppLanguage } from '@/contexts/LanguageContext';
-import { useSubscription } from '@/contexts/SubscriptionContext';
+// Bible Reader is FREE - no subscription needed
 import { useAuth } from '@/contexts/AuthContext';
 import { ThemeMode } from '@/constants/colors';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -33,22 +33,13 @@ export default function SettingsScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const {
-    isSubscribed,
-    isPremiumFromFirestore,
-    isTrialActive,
-    trialDaysRemaining,
-    subscription,
-    openPaywall,
-  } = useSubscription();
+  // Bible Reader is FREE - no subscription needed
+  const isSubscribed = true;
   const { user, isAuthenticated, logout } = useAuth();
 
   const handleNotificationsPress = () => {
-    if (isSubscribed) {
-      router.push('/notification-settings');
-    } else {
-      openPaywall();
-    }
+    // Always accessible in Bible Reader (free app)
+    router.push('/notification-settings');
   };
 
   const handleSavedPress = () => {

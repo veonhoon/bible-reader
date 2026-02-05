@@ -7,14 +7,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Switch,
-  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { BookOpen, ChevronRight, Clock, Bell, BellOff, Calendar, Crown } from 'lucide-react-native';
+import { BookOpen, ChevronRight, Clock, Bell, BellOff, Calendar } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useReadingProgress } from '@/contexts/ReadingProgressContext';
-import { useSubscription } from '@/contexts/SubscriptionContext';
+// Bible Reader is FREE - no subscription needed
 import {
   WeeklyContent,
   Snippet,
@@ -42,7 +41,8 @@ const formatWeekDate = (date: Date): string => {
 export default function HomeScreen() {
   const { colors } = useTheme();
   const { lastRead } = useReadingProgress();
-  const { isSubscribed, openPaywall } = useSubscription();
+  // Bible Reader is FREE - no subscription needed
+  const isSubscribed = true; // Always true - free app
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -103,21 +103,8 @@ export default function HomeScreen() {
     }
   }, [content?.weekId, notificationsOn, isSubscribed]);
 
-  // Toggle notifications
+  // Toggle notifications - FREE for everyone in Bible Reader
   const handleNotificationToggle = async (value: boolean) => {
-    // If trying to enable and not premium, show paywall
-    if (value && !isSubscribed) {
-      Alert.alert(
-        'Premium Feature',
-        'Daily teaching notifications are a premium feature. Upgrade to receive scripture insights throughout your day.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Upgrade', onPress: openPaywall }
-        ]
-      );
-      return;
-    }
-
     setIsTogglingNotifications(true);
     await setNotificationsEnabled(value);
     setNotificationsOn(value);
@@ -199,39 +186,29 @@ export default function HomeScreen() {
             {/* Notification Toggle */}
             <View style={[styles.notificationCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.notificationContent}>
-                {notificationsOn && isSubscribed ? (
+                {notificationsOn ? (
                   <Bell color={colors.accent} size={24} />
                 ) : (
                   <BellOff color={colors.textMuted} size={24} />
                 )}
                 <View style={styles.notificationText}>
-                  <View style={styles.notificationTitleRow}>
-                    <Text style={[styles.notificationTitle, { color: colors.text }]}>
-                      Daily Teachings
-                    </Text>
-                    {!isSubscribed && (
-                      <View style={[styles.premiumBadge, { backgroundColor: colors.accent + '20' }]}>
-                        <Crown color={colors.accent} size={12} />
-                        <Text style={[styles.premiumBadgeText, { color: colors.accent }]}>Premium</Text>
-                      </View>
-                    )}
-                  </View>
+                  <Text style={[styles.notificationTitle, { color: colors.text }]}>
+                    Daily Teachings
+                  </Text>
                   <Text style={[styles.notificationDesc, { color: colors.textSecondary }]}>
-                    {notificationsOn && isSubscribed
+                    {notificationsOn
                       ? 'Receive daily scripture insights'
-                      : isSubscribed
-                      ? 'Turn on to get daily reminders'
-                      : 'Upgrade to receive daily reminders'}
+                      : 'Turn on to get daily reminders'}
                   </Text>
                 </View>
                 {isTogglingNotifications ? (
                   <ActivityIndicator size="small" color={colors.accent} />
                 ) : (
                   <Switch
-                    value={notificationsOn && isSubscribed}
+                    value={notificationsOn}
                     onValueChange={handleNotificationToggle}
                     trackColor={{ false: colors.border, true: colors.accent + '80' }}
-                    thumbColor={notificationsOn && isSubscribed ? colors.accent : colors.textMuted}
+                    thumbColor={notificationsOn ? colors.accent : colors.textMuted}
                   />
                 )}
               </View>

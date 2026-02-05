@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,19 +11,47 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Bell, Sun, Moon, Clock } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useSubscription } from '@/contexts/SubscriptionContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Notification preferences type
+interface NotificationPrefs {
+  weeklyScripture: boolean;
+  dailyVerse: boolean;
+  schedule: 'morning' | 'evening';
+  quietHoursStart: number;
+  quietHoursEnd: number;
+}
+
+const DEFAULT_PREFS: NotificationPrefs = {
+  weeklyScripture: true,
+  dailyVerse: true,
+  schedule: 'morning',
+  quietHoursStart: 22,
+  quietHoursEnd: 7,
+};
 
 export default function NotificationSettingsScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const {
-    isSubscribed,
-    isTrialActive,
-    trialDaysRemaining,
-    notificationPrefs,
-    updateNotificationPrefs,
-  } = useSubscription();
+  
+  // Bible Reader is FREE - all notifications enabled
+  const isSubscribed = true;
+  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPrefs>(DEFAULT_PREFS);
+
+  // Load saved preferences
+  useEffect(() => {
+    AsyncStorage.getItem('notificationPrefs').then(val => {
+      if (val) setNotificationPrefs(JSON.parse(val));
+    });
+  }, []);
+
+  // Save preferences
+  const updateNotificationPrefs = async (updates: Partial<NotificationPrefs>) => {
+    const newPrefs = { ...notificationPrefs, ...updates };
+    setNotificationPrefs(newPrefs);
+    await AsyncStorage.setItem('notificationPrefs', JSON.stringify(newPrefs));
+  };
 
   const handleToggleWeekly = (value: boolean) => {
     updateNotificationPrefs({ weeklyScripture: value });
@@ -60,23 +88,7 @@ export default function NotificationSettingsScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }]}
         showsVerticalScrollIndicator={false}
       >
-        {isTrialActive && (
-          <View style={[styles.trialBanner, { backgroundColor: colors.gold + '15', borderColor: colors.gold + '30' }]}>
-            <Clock color={colors.gold} size={18} />
-            <Text style={[styles.trialText, { color: colors.gold }]}>
-              {trialDaysRemaining} days left in your free trial
-            </Text>
-          </View>
-        )}
-
-        {!isSubscribed && (
-          <View style={[styles.infoCard, { backgroundColor: colors.accent + '10', borderColor: colors.accent + '20' }]}>
-            <Bell color={colors.accent} size={20} />
-            <Text style={[styles.infoText, { color: colors.text }]}>
-              Start your free trial to enable notifications.
-            </Text>
-          </View>
-        )}
+        {/* Bible Reader is FREE - no trial/premium banners needed */}
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
@@ -98,7 +110,7 @@ export default function NotificationSettingsScreen() {
                 onValueChange={handleToggleWeekly}
                 trackColor={{ false: colors.border, true: colors.accent + '60' }}
                 thumbColor={notificationPrefs.weeklyScripture ? colors.accent : colors.textMuted}
-                disabled={!isSubscribed}
+                disabled={false}
                 testID="weekly-switch"
               />
             </View>
@@ -119,7 +131,7 @@ export default function NotificationSettingsScreen() {
                 onValueChange={handleToggleDaily}
                 trackColor={{ false: colors.border, true: colors.accent + '60' }}
                 thumbColor={notificationPrefs.dailyVerse ? colors.accent : colors.textMuted}
-                disabled={!isSubscribed}
+                disabled={false}
                 testID="daily-switch"
               />
             </View>
@@ -140,7 +152,7 @@ export default function NotificationSettingsScreen() {
                 },
               ]}
               onPress={() => handleScheduleChange('morning')}
-              disabled={!isSubscribed}
+              disabled={false}
               testID="schedule-morning"
             >
               <View style={[styles.scheduleIcon, { backgroundColor: colors.gold + '15' }]}>
@@ -174,7 +186,7 @@ export default function NotificationSettingsScreen() {
                 },
               ]}
               onPress={() => handleScheduleChange('evening')}
-              disabled={!isSubscribed}
+              disabled={false}
               testID="schedule-evening"
             >
               <View style={[styles.scheduleIcon, { backgroundColor: colors.accent + '15' }]}>
