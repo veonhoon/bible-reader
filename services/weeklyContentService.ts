@@ -23,6 +23,8 @@ export interface Snippet {
   body: string;
   snippet: string;
   scripture: Scripture;
+  day?: number; // Day of the week (1-7) this snippet belongs to
+  isDirectCitation?: boolean; // True if scripture is directly from the teaching document
 }
 
 export interface WeeklyContent {
@@ -44,23 +46,71 @@ export interface NotificationSchedule {
 // No-op unsubscribe function for when Firebase is not configured
 const noopUnsubscribe: Unsubscribe = () => {};
 
-// Convert Firestore document to WeeklyContent object
-const docToWeeklyContent = (docSnap: any): WeeklyContent => {
+// Transform bilingual Firestore document to WeeklyContent based on language
+const transformTeachingToContent = (docSnap: any, language: string = 'en'): WeeklyContent => {
   const data = docSnap.data();
+  const lang = language === 'ko' ? 'ko' : 'en';
+  
+  // Get title based on language (fallback to English if Korean not available)
+  const weekTitle = data[`title_${lang}`] || data.title_en || data.title || '';
+  
+  // Transform snippets to expected format
+  const snippets: Snippet[] = (data.snippets || []).map((s: any, index: number) => {
+    const title = s[`title_${lang}`] || s.title_en || s.title || '';
+    const subtitle = s[`subtitle_${lang}`] || s.subtitle_en || s.subtitle || '';
+    // Main teaching content: try snippet_X first, then content_X, then fallback
+    const body = s[`snippet_${lang}`] || s.snippet_en || s[`content_${lang}`] || s.content_en || s.content || '';
+    // Short preview for notifications: try body_X first (our new format)
+    const shortPreview = s[`body_${lang}`] || s.body_en || body.substring(0, 100) + (body.length > 100 ? '...' : '');
+    
+    // Scripture: try nested object first, then flat fields
+    let scriptureRef = '';
+    let scriptureText = '';
+    if (s.scripture && typeof s.scripture === 'object') {
+      scriptureRef = s.scripture[`reference_${lang}`] || s.scripture.reference_en || s.scripture.reference || '';
+      scriptureText = s.scripture[`text_${lang}`] || s.scripture.text_en || s.scripture.text || '';
+    } else {
+      scriptureRef = s[`scriptureRef_${lang}`] || s.scriptureRef_en || s.scriptureReference || '';
+      scriptureText = s[`scripture_${lang}`] || s.scripture_en || '';
+    }
+    
+    return {
+      id: s.id || `snippet-${index + 1}`,
+      title,
+      subtitle,
+      body,
+      snippet: shortPreview,
+      scripture: {
+        reference: scriptureRef,
+        text: scriptureText,
+      },
+      day: s.day, // Preserve day property for filtering
+      isDirectCitation: s.isDirectCitation || false, // From teaching document
+    };
+  });
+  
   return {
     id: docSnap.id,
-    weekId: data.weekId || docSnap.id,
-    weekTitle: data.weekTitle || '',
-    snippets: data.snippets || [],
-    snippetCount: data.snippetCount || data.snippets?.length || 0,
+    weekId: data.id || docSnap.id,
+    weekTitle,
+    snippets,
+    snippetCount: snippets.length,
     createdAt: data.createdAt?.toDate() || new Date(),
-    publishedAt: data.publishedAt?.toDate() || new Date(),
+    publishedAt: data.publishedAt?.toDate() || data.updatedAt?.toDate() || new Date(),
   };
 };
 
+// Current language setting (will be set by subscriber)
+let currentLanguage = 'en';
+
+export const setContentLanguage = (lang: string) => {
+  currentLanguage = lang;
+};
+
 // Get the latest weekly content
-export const getLatestWeeklyContent = async (): Promise<WeeklyContent | null> => {
-  console.log('[WeeklyContent] getLatestWeeklyContent called');
+export const getLatestWeeklyContent = async (language?: string): Promise<WeeklyContent | null> => {
+  const lang = language || currentLanguage;
+  console.log('[WeeklyContent] getLatestWeeklyContent called, language:', lang);
   console.log('[WeeklyContent] Firebase configured:', isFirebaseConfigured);
   console.log('[WeeklyContent] DB available:', !!db);
 
@@ -68,29 +118,57 @@ export const getLatestWeeklyContent = async (): Promise<WeeklyContent | null> =>
     console.warn('[WeeklyContent] Firebase not configured, returning null');
     return null;
   }
+  
   try {
-    const q = query(
+    // Try weeklyTeachings collection first (bilingual content)
+    // Simple query - just get all docs and sort in code
+    console.log('[WeeklyContent] Querying weeklyTeachings...');
+    const teachingsSnapshot = await getDocs(collection(db, 'weeklyTeachings'));
+    
+    // Filter and sort in code to avoid index requirements
+    const publishedDocs = teachingsSnapshot.docs
+      .filter(doc => doc.data().isPublished !== false)
+      .sort((a, b) => {
+        // Sort by ID descending (2026-W06 > 2026-W05)
+        return b.id.localeCompare(a.id);
+      });
+    
+    if (publishedDocs.length > 0) {
+      const content = transformTeachingToContent(publishedDocs[0], lang);
+      console.log('[WeeklyContent] Content fetched from weeklyTeachings:', {
+        weekId: content.weekId,
+        weekTitle: content.weekTitle,
+        snippetCount: content.snippets?.length || 0,
+        publishedAt: content.publishedAt
+      });
+      return content;
+    }
+    
+    // Fallback to weeklyContent collection (legacy format)
+    console.log('[WeeklyContent] No weeklyTeachings, trying weeklyContent...');
+    const contentQuery = query(
       collection(db, 'weeklyContent'),
       orderBy('publishedAt', 'desc'),
       limit(1)
     );
-    console.log('[WeeklyContent] Executing query...');
-    const snapshot = await getDocs(q);
-    console.log('[WeeklyContent] Query complete. Empty:', snapshot.empty, 'Docs:', snapshot.docs.length);
+    const contentSnapshot = await getDocs(contentQuery);
 
-    if (snapshot.empty) {
-      console.log('[WeeklyContent] No content found in database');
+    if (contentSnapshot.empty) {
+      console.log('[WeeklyContent] No content found in either collection');
       return null;
     }
 
-    const content = docToWeeklyContent(snapshot.docs[0]);
-    console.log('[WeeklyContent] Content fetched:', {
-      weekId: content.weekId,
-      weekTitle: content.weekTitle,
-      snippetCount: content.snippets?.length || 0,
-      publishedAt: content.publishedAt
-    });
-    return content;
+    // Legacy format - just map directly
+    const docData = contentSnapshot.docs[0].data();
+    return {
+      id: contentSnapshot.docs[0].id,
+      weekId: docData.weekId || contentSnapshot.docs[0].id,
+      weekTitle: docData.weekTitle || '',
+      snippets: docData.snippets || [],
+      snippetCount: docData.snippetCount || docData.snippets?.length || 0,
+      createdAt: docData.createdAt?.toDate() || new Date(),
+      publishedAt: docData.publishedAt?.toDate() || new Date(),
+    };
   } catch (error) {
     console.error('[WeeklyContent] Error fetching latest weekly content:', error);
     if (error instanceof Error) {
@@ -101,9 +179,9 @@ export const getLatestWeeklyContent = async (): Promise<WeeklyContent | null> =>
 };
 
 // Get a specific snippet by ID from the latest content
-export const getSnippetById = async (snippetId: string): Promise<Snippet | null> => {
+export const getSnippetById = async (snippetId: string, language?: string): Promise<Snippet | null> => {
   console.log('[WeeklyContent] getSnippetById called with ID:', snippetId);
-  const content = await getLatestWeeklyContent();
+  const content = await getLatestWeeklyContent(language);
 
   if (!content) {
     console.log('[WeeklyContent] No content available, cannot find snippet');
@@ -145,9 +223,11 @@ export const getNotificationSchedule = async (): Promise<NotificationSchedule | 
 
 // Subscribe to latest weekly content (real-time updates)
 export const subscribeToLatestWeeklyContent = (
-  callback: (content: WeeklyContent | null) => void
+  callback: (content: WeeklyContent | null) => void,
+  language?: string
 ): Unsubscribe => {
-  console.log('[WeeklyContent] Subscribing to content...');
+  const lang = language || currentLanguage;
+  console.log('[WeeklyContent] Subscribing to content, language:', lang);
   console.log('[WeeklyContent] Firebase configured:', isFirebaseConfigured);
   console.log('[WeeklyContent] DB available:', !!db);
 
@@ -157,22 +237,48 @@ export const subscribeToLatestWeeklyContent = (
     return noopUnsubscribe;
   }
 
-  const q = query(
-    collection(db, 'weeklyContent'),
-    orderBy('publishedAt', 'desc'),
-    limit(1)
-  );
-
-  return onSnapshot(q, (snapshot) => {
-    console.log('[WeeklyContent] Snapshot received, empty:', snapshot.empty);
-    if (snapshot.empty) {
-      console.log('[WeeklyContent] No content found');
-      callback(null);
-    } else {
-      const content = docToWeeklyContent(snapshot.docs[0]);
+  // Subscribe to weeklyTeachings collection (bilingual)
+  // Simple query - just watch all docs and sort in code  
+  return onSnapshot(collection(db, 'weeklyTeachings'), (snapshot) => {
+    console.log('[WeeklyContent] Snapshot received, docs:', snapshot.docs.length);
+    
+    // Filter and sort in code to avoid index requirements
+    const publishedDocs = snapshot.docs
+      .filter(doc => doc.data().isPublished !== false)
+      .sort((a, b) => b.id.localeCompare(a.id));
+    
+    if (publishedDocs.length > 0) {
+      const content = transformTeachingToContent(publishedDocs[0], lang);
       console.log('[WeeklyContent] Content loaded:', content.weekTitle, 'with', content.snippets?.length, 'snippets');
       callback(content);
+      return;
     }
+    
+    // Fallback to weeklyContent if no teachings found
+    console.log('[WeeklyContent] No weeklyTeachings, trying weeklyContent fallback...');
+    const contentQuery = query(
+      collection(db, 'weeklyContent'),
+      orderBy('publishedAt', 'desc'),
+      limit(1)
+    );
+    
+    getDocs(contentQuery).then((contentSnapshot) => {
+      if (contentSnapshot.empty) {
+        console.log('[WeeklyContent] No content found');
+        callback(null);
+      } else {
+        const docData = contentSnapshot.docs[0].data();
+        callback({
+          id: contentSnapshot.docs[0].id,
+          weekId: docData.weekId || contentSnapshot.docs[0].id,
+          weekTitle: docData.weekTitle || '',
+          snippets: docData.snippets || [],
+          snippetCount: docData.snippetCount || docData.snippets?.length || 0,
+          createdAt: docData.createdAt?.toDate() || new Date(),
+          publishedAt: docData.publishedAt?.toDate() || new Date(),
+        });
+      }
+    });
   }, (error) => {
     console.error('[WeeklyContent] Error subscribing to weekly content:', error);
     callback(null);
@@ -229,10 +335,22 @@ export const getTodaysSnippets = (content: WeeklyContent): Snippet[] => {
     return [];
   }
 
+  // Get current day (1-7) since publish
+  const dayIndex = getDaysSincePublish(content.publishedAt);
+  const currentDay = dayIndex + 1; // Convert 0-6 to 1-7
+
+  // Filter snippets by their day property
+  // If snippet has day property, use it; otherwise fall back to index-based calculation
+  const snippetsWithDay = content.snippets.filter(s => s.day !== undefined);
+  
+  if (snippetsWithDay.length > 0) {
+    // Use day property to filter
+    return content.snippets.filter(s => s.day === currentDay);
+  }
+  
+  // Fallback: divide snippets evenly across 7 days
   const totalSnippets = content.snippets.length;
   const snippetsPerDay = Math.ceil(totalSnippets / 7);
-  const dayIndex = getDaysSincePublish(content.publishedAt);
-
   const startIndex = dayIndex * snippetsPerDay;
   const endIndex = Math.min(startIndex + snippetsPerDay, totalSnippets);
 

@@ -1,8 +1,8 @@
 {
   "expo": {
     "name": "Bible Reader",
-    "slug": "bible-reader",
-    "version": "1.0.0",
+    "slug": "calm-bible-reader",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "bible-reader",
@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0a0a0a"
+      "backgroundColor": "#ffffff"
     },
     "ios": {
       "supportsTablet": false,

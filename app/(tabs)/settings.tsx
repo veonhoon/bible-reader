@@ -1,18 +1,20 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Switch,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Sun, Moon, BookOpen, ChevronRight, Bell, Crown, Clock, User, LogOut, Mail, Bookmark, Heart, Globe } from 'lucide-react-native';
+import { Sun, Moon, BookOpen, ChevronRight, Bell, Bookmark, Heart, Globe } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage, AppLanguage } from '@/contexts/LanguageContext';
-// Bible Reader is FREE - no subscription needed
-import { useAuth } from '@/contexts/AuthContext';
+// Bible Reader is FREE - no accounts needed
+// Test notification removed - was only for development
 import { ThemeMode } from '@/constants/colors';
 import { useTranslation } from '@/hooks/useTranslation';
 
@@ -33,34 +35,32 @@ export default function SettingsScreen() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  // Bible Reader is FREE - no subscription needed
-  const isSubscribed = true;
-  const { user, isAuthenticated, logout } = useAuth();
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
-  const handleNotificationsPress = () => {
-    // Always accessible in Bible Reader (free app)
-    router.push('/notification-settings');
+  // Load notification preference on mount
+  useEffect(() => {
+    const loadNotificationPref = async () => {
+      try {
+        const value = await AsyncStorage.getItem('notificationsEnabled');
+        setNotificationsEnabled(value === 'true');
+      } catch (e) {
+        console.log('Error loading notification preference');
+      }
+    };
+    loadNotificationPref();
+  }, []);
+
+  const toggleNotifications = async (value: boolean) => {
+    setNotificationsEnabled(value);
+    try {
+      await AsyncStorage.setItem('notificationsEnabled', value.toString());
+    } catch (e) {
+      console.log('Error saving notification preference');
+    }
   };
 
   const handleSavedPress = () => {
     router.push('/(tabs)/bookmarks');
-  };
-
-  const handleLoginPress = () => {
-    router.push('/login');
-  };
-
-  const handleLogout = async () => {
-    await logout();
-  };
-
-  const getProviderLabel = (provider: string) => {
-    switch (provider) {
-      case 'google': return 'Google';
-      case 'apple': return 'Apple';
-      case 'email': return 'Email';
-      default: return provider;
-    }
   };
 
   return (
@@ -183,30 +183,27 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* 4. Enable Reminders and Push Notifications */}
+        {/* 4. Notifications Toggle */}
         <View style={styles.section}>
           <View style={[styles.menuContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={handleNotificationsPress}
-              testID="notifications-settings"
-            >
+            <View style={styles.toggleItem}>
               <View style={styles.menuItemLeft}>
                 <View style={[styles.iconContainer, { backgroundColor: colors.accent + '15' }]}>
                   <Bell color={colors.accent} size={20} />
                 </View>
-                <View>
-                  <Text style={[styles.menuItemTitle, { color: colors.text }]}>
-                    {t('reminders')}
-                  </Text>
-                  <Text style={[styles.menuItemSubtitle, { color: colors.textMuted }]}>
-                    {isSubscribed ? t('manageReminders') : t('enableNotifications')}
-                  </Text>
-                </View>
+                <Text style={[styles.menuItemTitle, { color: colors.text }]}>
+                  {t('notifications')}
+                </Text>
               </View>
-              <ChevronRight color={colors.textMuted} size={20} />
-            </TouchableOpacity>
+              <Switch
+                value={notificationsEnabled}
+                onValueChange={toggleNotifications}
+                trackColor={{ false: colors.border, true: colors.accent }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
           </View>
+
         </View>
 
         {/* 5. Reading is always free */}
@@ -223,74 +220,6 @@ export default function SettingsScreen() {
           <Text style={[styles.madeWithLoveText, { color: colors.textMuted }]}>
             {t('madeWithLove')}
           </Text>
-        </View>
-
-        {/* 7. Account Section - at the bottom */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-            {t('account').toUpperCase()}
-          </Text>
-
-          {isAuthenticated && user ? (
-            <View style={[styles.accountCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={styles.accountHeader}>
-                <View style={[styles.avatarContainer, { backgroundColor: colors.accent }]}>
-                  <Text style={styles.avatarText}>
-                    {user.displayName?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || 'U'}
-                  </Text>
-                </View>
-                <View style={styles.accountInfo}>
-                  <Text style={[styles.accountName, { color: colors.text }]}>
-                    {user.displayName || 'User'}
-                  </Text>
-                  <View style={styles.accountEmailRow}>
-                    <Mail color={colors.textMuted} size={14} />
-                    <Text style={[styles.accountEmail, { color: colors.textSecondary }]}>
-                      {user.email}
-                    </Text>
-                  </View>
-                  <View style={[styles.providerBadge, { backgroundColor: colors.accent + '15' }]}>
-                    <Text style={[styles.providerText, { color: colors.accent }]}>
-                      {getProviderLabel(user.provider)}
-                    </Text>
-                    {user.isPremium && (
-                      <View style={[styles.premiumBadge, { backgroundColor: colors.gold }]}>
-                        <Crown color="#FFFFFF" size={10} />
-                        <Text style={styles.premiumText}>{t('premium')}</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              </View>
-              <TouchableOpacity
-                style={[styles.logoutButton, { borderColor: colors.border }]}
-                onPress={handleLogout}
-              >
-                <LogOut color={colors.error} size={18} />
-                <Text style={[styles.logoutText, { color: colors.error }]}>{t('signOut')}</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={[styles.signInCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={handleLoginPress}
-            >
-              <View style={styles.signInContent}>
-                <View style={[styles.signInIconContainer, { backgroundColor: colors.accent + '15' }]}>
-                  <User color={colors.accent} size={24} />
-                </View>
-                <View style={styles.signInTextContainer}>
-                  <Text style={[styles.signInTitle, { color: colors.text }]}>
-                    {t('signIn')}
-                  </Text>
-                  <Text style={[styles.signInSubtitle, { color: colors.textSecondary }]}>
-                    {t('syncProgress')}
-                  </Text>
-                </View>
-              </View>
-              <ChevronRight color={colors.textMuted} size={20} />
-            </TouchableOpacity>
-          )}
         </View>
       </ScrollView>
     </View>
@@ -355,6 +284,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 16,
   },
+  toggleItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
   menuItemLeft: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -398,116 +333,6 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   madeWithLoveText: {
-    fontSize: 14,
-  },
-  accountCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-  },
-  accountHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    marginBottom: 16,
-  },
-  avatarContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  accountInfo: {
-    flex: 1,
-  },
-  accountName: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  accountEmailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  accountEmail: {
-    fontSize: 14,
-  },
-  providerBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 8,
-  },
-  providerText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  premiumBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    gap: 4,
-  },
-  premiumText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    gap: 8,
-  },
-  logoutText: {
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  signInCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-  },
-  signInContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    flex: 1,
-  },
-  signInIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  signInTextContainer: {
-    flex: 1,
-  },
-  signInTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  signInSubtitle: {
     fontSize: 14,
   },
 });

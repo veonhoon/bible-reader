@@ -4,21 +4,35 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getSnippetById, Snippet } from '@/services/weeklyContentService';
 import { BIBLE_BOOKS } from '@/mocks/bibleData';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { useTranslation } from '@/hooks/useTranslation';
+import { KOREAN_BOOK_NAMES } from '@/constants/koreanBookNames';
 
 export default function SnippetDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { language } = useLanguage();
+  const { t } = useTranslation();
   const [snippet, setSnippet] = useState<Snippet | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  const isKorean = language === 'ko';
 
   useEffect(() => {
     const loadSnippet = async () => {
       console.log('[SnippetDetail] Loading snippet with ID:', id);
 
       if (id) {
-        const data = await getSnippetById(id);
+        const data = await getSnippetById(id, language);
         if (data) {
-          console.log('[SnippetDetail] Snippet loaded successfully:', data.title);
+          console.log('[SnippetDetail] Snippet loaded:', JSON.stringify({
+            title: data.title,
+            subtitle: data.subtitle,
+            bodyLength: data.body?.length || 0,
+            bodyPreview: data.body?.substring(0, 50),
+            scriptureRef: data.scripture?.reference,
+            scriptureTextLength: data.scripture?.text?.length || 0,
+          }));
         } else {
           console.log('[SnippetDetail] Snippet not found for ID:', id);
         }
@@ -29,16 +43,42 @@ export default function SnippetDetailScreen() {
       setLoading(false);
     };
     loadSnippet();
-  }, [id]);
+  }, [id, language]);
 
-  const parseScriptureReference = (reference: string): { bookId: string; chapter: number } | null => {
-    // Parse references like "John 3:16", "1 Corinthians 13:4-7", "Genesis 1:1", "Psalm 23"
-    // First, try to match the book name and chapter
-    const match = reference.match(/^(\d?\s*[A-Za-z\s]+?)\s*(\d+)(?:[:\.].*)?$/);
+  const parseScriptureReference = (reference: string): { bookId: string; chapter: number; verse?: number } | null => {
+    // Build Korean to English book ID mapping
+    const koreanToBookId: Record<string, string> = {};
+    Object.entries(KOREAN_BOOK_NAMES).forEach(([bookId, { korean }]) => {
+      koreanToBookId[korean] = bookId;
+    });
+    
+    // Try Korean format first: "여호수아 1:9" or "창세기 17:19-20"
+    const koreanMatch = reference.match(/^([가-힣]+)\s*(\d+)(?:[:\.](\d+))?/);
+    if (koreanMatch) {
+      const koreanName = koreanMatch[1];
+      const chapter = parseInt(koreanMatch[2], 10);
+      const verse = koreanMatch[3] ? parseInt(koreanMatch[3], 10) : undefined;
+      
+      // Find book ID from Korean name
+      const bookId = koreanToBookId[koreanName];
+      if (bookId) {
+        // Verify book exists in BIBLE_BOOKS
+        const book = BIBLE_BOOKS.find(b => b.id === bookId);
+        if (book) {
+          console.log('[Scripture] Korean reference parsed:', koreanName, '->', bookId, chapter, verse);
+          return { bookId: book.id, chapter, verse };
+        }
+      }
+      console.log('[Scripture] Korean book not found:', koreanName);
+    }
+    
+    // English format: "John 3:16", "1 Corinthians 13:4-7", "Genesis 1:1"
+    const match = reference.match(/^(\d?\s*[A-Za-z\s]+?)\s*(\d+)(?:[:\.](\d+))?/);
     if (!match) return null;
 
     const bookName = match[1].trim().toLowerCase();
     const chapter = parseInt(match[2], 10);
+    const verse = match[3] ? parseInt(match[3], 10) : undefined;
 
     // Find the book by matching name or shortName
     const book = BIBLE_BOOKS.find(b => {
@@ -52,15 +92,23 @@ export default function SnippetDetailScreen() {
              normalizedBookName.startsWith(name.split(' ')[0]);
     });
 
-    if (!book) return null;
-    return { bookId: book.id, chapter };
+    if (!book) {
+      console.log('[Scripture] English book not found:', bookName);
+      return null;
+    }
+    console.log('[Scripture] English reference parsed:', bookName, '->', book.id, chapter, verse);
+    return { bookId: book.id, chapter, verse };
   };
 
   const openScripture = () => {
     if (snippet?.scripture?.reference) {
       const parsed = parseScriptureReference(snippet.scripture.reference);
       if (parsed) {
-        router.push(`/reader?bookId=${parsed.bookId}&chapter=${parsed.chapter}`);
+        const params = [`bookId=${parsed.bookId}`, `chapter=${parsed.chapter}`];
+        if (parsed.verse) {
+          params.push(`highlightVerse=${parsed.verse}`);
+        }
+        router.push(`/reader?${params.join('&')}`);
       }
     }
   };
@@ -77,9 +125,9 @@ export default function SnippetDetailScreen() {
     return (
       <View style={styles.errorContainer}>
         <Ionicons name="alert-circle-outline" size={48} color="#9ca3af" />
-        <Text style={styles.errorText}>Snippet not found</Text>
+        <Text style={styles.errorText}>{isKorean ? '가르침을 찾을 수 없습니다' : 'Teaching not found'}</Text>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>Go Back</Text>
+          <Text style={styles.backButtonText}>{isKorean ? '돌아가기' : 'Go Back'}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -89,8 +137,8 @@ export default function SnippetDetailScreen() {
     <>
       <Stack.Screen
         options={{
-          title: snippet.title,
-          headerBackTitle: 'Back',
+          title: isKorean ? '말씀' : 'Teaching',
+          headerBackTitle: isKorean ? '뒤로' : 'Back',
         }}
       />
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -104,20 +152,54 @@ export default function SnippetDetailScreen() {
 
         {/* Teaching Content */}
         <View style={styles.teachingSection}>
-          <Text style={styles.teachingText}>{snippet.snippet}</Text>
+          <Text style={styles.teachingText}>{snippet.body}</Text>
         </View>
 
         {/* Scripture Section */}
         {snippet.scripture?.reference && (
-          <View style={styles.scriptureSection}>
+          <View style={[
+            styles.scriptureSection,
+            snippet.isDirectCitation && styles.directCitationSection
+          ]}>
+            {snippet.isDirectCitation && (
+              <View style={styles.directCitationBadge}>
+                <Ionicons name="star" size={12} color="#fff" />
+                <Text style={styles.directCitationBadgeText}>
+                  {isKorean ? '말씀에서 직접 인용' : 'From the Teaching'}
+                </Text>
+              </View>
+            )}
             <View style={styles.scriptureHeader}>
-              <Ionicons name="book-outline" size={20} color="#6366f1" />
-              <Text style={styles.scriptureReference}>{snippet.scripture.reference}</Text>
+              <Ionicons 
+                name="book-outline" 
+                size={20} 
+                color={snippet.isDirectCitation ? "#1d4ed8" : "#6366f1"} 
+              />
+              <Text style={[
+                styles.scriptureReference,
+                snippet.isDirectCitation && styles.directCitationReference
+              ]}>
+                {snippet.scripture.reference}
+              </Text>
             </View>
-            <Text style={styles.scriptureText}>"{snippet.scripture.text}"</Text>
+            <Text style={[
+              styles.scriptureText,
+              snippet.isDirectCitation && styles.directCitationText
+            ]}>
+              "{snippet.scripture.text}"
+            </Text>
             <TouchableOpacity style={styles.readMoreButton} onPress={openScripture}>
-              <Text style={styles.readMoreText}>Read Full Scripture</Text>
-              <Ionicons name="arrow-forward" size={16} color="#6366f1" />
+              <Text style={[
+                styles.readMoreText,
+                snippet.isDirectCitation && styles.directCitationReadMore
+              ]}>
+                {isKorean ? '전체 성경 읽기' : 'Read Full Scripture'}
+              </Text>
+              <Ionicons 
+                name="arrow-forward" 
+                size={16} 
+                color={snippet.isDirectCitation ? "#1d4ed8" : "#6366f1"} 
+              />
             </TouchableOpacity>
           </View>
         )}
@@ -201,6 +283,39 @@ const styles = StyleSheet.create({
     padding: 20,
     borderWidth: 1,
     borderColor: '#dbeafe',
+  },
+  directCitationSection: {
+    backgroundColor: '#1e3a8a',
+    borderColor: '#1e40af',
+    borderWidth: 2,
+  },
+  directCitationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2563eb',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  directCitationBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
+    marginLeft: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  directCitationReference: {
+    color: '#93c5fd',
+  },
+  directCitationText: {
+    color: '#dbeafe',
+    fontStyle: 'normal',
+  },
+  directCitationReadMore: {
+    color: '#93c5fd',
   },
   scriptureHeader: {
     flexDirection: 'row',

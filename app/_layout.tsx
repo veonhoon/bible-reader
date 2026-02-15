@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack, useRouter } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { View, ActivityIndicator } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ThemeProvider } from "@/contexts/ThemeContext";
@@ -15,7 +15,7 @@ import { BibleProvider } from "@/contexts/BibleContext";
 import { ReadingProgressProvider, useReadingProgress } from "@/contexts/ReadingProgressContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import * as Notifications from 'expo-notifications';
-import Paywall from "@/components/Paywall";
+// Paywall removed - Bible Reader is free
 import { registerPushTokenToFirestore } from "@/services/notificationScheduler";
 
 SplashScreen.preventAutoHideAsync();
@@ -36,7 +36,7 @@ let initialNotificationHandled = false;
 const queryClient = new QueryClient();
 
 function RootLayoutNav() {
-  const { showPaywall, closePaywall, isLoading: subLoading } = useSubscription();
+  const { isLoading: subLoading } = useSubscription();
   const { isLoading: bookmarksLoading } = useBookmarks();
   const { isLoading: adminLoading } = useAdmin();
   const { isLoading: scripturesLoading } = useCustomScriptures();
@@ -45,12 +45,12 @@ function RootLayoutNav() {
   const [hasAutoNavigated, setHasAutoNavigated] = useState(false);
   const [hasCheckedLanguage, setHasCheckedLanguage] = useState(false);
   const [needsLanguageSelect, setNeedsLanguageSelect] = useState(false);
-  const notificationListener = useRef<any>();
+  const hasRedirectedToOnboarding = useRef(false);
   const responseListener = useRef<any>();
 
   const isLoading = subLoading || bookmarksLoading || adminLoading || scripturesLoading || progressLoading;
 
-  // Check if language has been selected
+  // Check if language has been selected (runs once on mount)
   useEffect(() => {
     const checkLanguage = async () => {
       try {
@@ -80,32 +80,21 @@ function RootLayoutNav() {
   useEffect(() => {
     console.log('[Notifications] Setting up notification handlers');
 
-    // Handle notification tap when app is in background/closed
     const handleNotificationResponse = (response: Notifications.NotificationResponse) => {
       console.log('[Notifications] Notification tapped!');
-      console.log('[Notifications] Response data:', JSON.stringify(response.notification.request.content.data, null, 2));
-
       const data = response.notification.request.content.data;
       if (data?.snippetId) {
         const snippetId = data.snippetId as string;
         console.log('[Notifications] Navigating to snippet:', snippetId);
         router.push(`/snippet/${snippetId}`);
-      } else {
-        console.warn('[Notifications] No snippetId in notification data:', data);
       }
     };
 
     // Check for initial notification (app opened from notification)
     Notifications.getLastNotificationResponseAsync().then((response) => {
-      console.log('[Notifications] Checking for initial notification...');
       if (response && !initialNotificationHandled) {
-        console.log('[Notifications] Found initial notification, handling it');
         initialNotificationHandled = true;
         handleNotificationResponse(response);
-      } else if (!response) {
-        console.log('[Notifications] No initial notification found');
-      } else {
-        console.log('[Notifications] Initial notification already handled');
       }
     });
 
@@ -114,34 +103,36 @@ function RootLayoutNav() {
       handleNotificationResponse
     );
 
-    console.log('[Notifications] Notification handlers set up successfully');
-
     return () => {
-      console.log('[Notifications] Cleaning up notification handlers');
       if (responseListener.current) {
         Notifications.removeNotificationSubscription(responseListener.current);
       }
     };
   }, [router]);
 
+  // Hide splash and handle initial routing (runs once when loading completes)
   useEffect(() => {
     if (!isLoading && hasCheckedLanguage) {
       SplashScreen.hideAsync();
 
-      // Redirect to language select if needed
-      if (needsLanguageSelect) {
+      // Redirect to onboarding ONLY ONCE
+      if (needsLanguageSelect && !hasRedirectedToOnboarding.current) {
+        hasRedirectedToOnboarding.current = true;
         router.replace('/language-select');
         return;
       }
 
-      if (shouldAutoNavigate && lastRead && !hasAutoNavigated) {
+      // Auto-navigate to last read position (only once on app launch)
+      if (!needsLanguageSelect && shouldAutoNavigate && lastRead && !hasAutoNavigated) {
         console.log('[Layout] Auto-navigating to last read:', lastRead);
         setHasAutoNavigated(true);
         markSessionEnded();
         router.push(`/reader?bookId=${lastRead.bookId}&chapter=${lastRead.chapter}`);
       }
     }
-  }, [isLoading, hasCheckedLanguage, needsLanguageSelect, shouldAutoNavigate, lastRead, hasAutoNavigated, markSessionEnded, router]);
+    // Intentionally exclude router to prevent re-triggering on tab switches
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, hasCheckedLanguage, needsLanguageSelect, shouldAutoNavigate, lastRead, hasAutoNavigated]);
 
   if (isLoading || !hasCheckedLanguage) {
     return (
@@ -247,7 +238,7 @@ function RootLayoutNav() {
           }}
         />
       </Stack>
-      <Paywall visible={showPaywall} onClose={closePaywall} />
+      {/* Paywall removed - Bible Reader is free */}
     </>
   );
 }

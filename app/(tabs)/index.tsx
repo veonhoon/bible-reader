@@ -23,12 +23,14 @@ import {
   getTodaysSnippets,
   getDailyProgress,
   DailyProgress,
+  setContentLanguage,
 } from '@/services/weeklyContentService';
 import {
   areNotificationsEnabled,
   setNotificationsEnabled,
   scheduleSnippetNotifications,
 } from '@/services/notificationScheduler';
+import { KOREAN_BOOK_NAMES } from '@/constants/koreanBookNames';
 
 // Format date for display
 const formatWeekDate = (date: Date, locale: string = 'en-US'): string => {
@@ -47,6 +49,17 @@ export default function HomeScreen() {
   const { t } = useTranslation();
   // Bible Reader is FREE - no subscription needed
   const isSubscribed = true; // Always true - free app
+  const isKorean = language === 'ko';
+
+  // Get localized book name for last read
+  const getLastReadBookName = (): string => {
+    if (!lastRead) return '';
+    if (isKorean) {
+      const koreanData = KOREAN_BOOK_NAMES[lastRead.bookId];
+      return koreanData?.korean || lastRead.bookName;
+    }
+    return lastRead.bookName;
+  };
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -59,10 +72,13 @@ export default function HomeScreen() {
 
   // Load content and notification settings
   useEffect(() => {
-    console.log('[HomeScreen] Setting up weekly content subscription');
+    console.log('[HomeScreen] Setting up weekly content subscription, language:', language);
+    
+    // Set language for content service
+    setContentLanguage(language);
 
     const unsubscribe = subscribeToLatestWeeklyContent((data) => {
-      console.log('[HomeScreen] Content update received:', data ? 'has data' : 'no data');
+      console.log('[HomeScreen] Content update received:', data ? 'has data' : 'no data', 'language:', language);
 
       if (data) {
         console.log('[HomeScreen] Content details:', {
@@ -75,9 +91,9 @@ export default function HomeScreen() {
 
       setContent(data);
       if (data) {
-        // Get only today's snippets
+        // Show only today's snippets (based on day of week since publish)
         const todaySnippets = getTodaysSnippets(data);
-        console.log('[HomeScreen] Today\'s snippets:', todaySnippets.length, 'snippets');
+        console.log('[HomeScreen] Today\'s snippets:', todaySnippets.length, 'of', data.snippets?.length, 'total');
         setTodaysSnippets(todaySnippets);
         setProgress(getDailyProgress(data));
       } else {
@@ -86,7 +102,7 @@ export default function HomeScreen() {
         setProgress(null);
       }
       setIsLoading(false);
-    });
+    }, language);
 
     // Check notification status
     areNotificationsEnabled().then((enabled) => {
@@ -98,7 +114,7 @@ export default function HomeScreen() {
       console.log('[HomeScreen] Cleaning up weekly content subscription');
       unsubscribe();
     };
-  }, []);
+  }, [language]); // Re-subscribe when language changes
 
   // Schedule notifications when content changes and notifications are enabled
   useEffect(() => {
@@ -165,7 +181,7 @@ export default function HomeScreen() {
                   {formatWeekDate(content.publishedAt, language)}
                 </Text>
               </View>
-              {/* Day Progress */}
+              {/* Week Progress */}
               <View style={[styles.progressCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <Text style={[styles.progressTitle, { color: colors.text }]}>
                   {t('dayOf', { current: progress.currentDay + 1, total: 7 })}
@@ -187,36 +203,7 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            {/* Notification Toggle */}
-            <View style={[styles.notificationCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={styles.notificationContent}>
-                {notificationsOn ? (
-                  <Bell color={colors.accent} size={24} />
-                ) : (
-                  <BellOff color={colors.textMuted} size={24} />
-                )}
-                <View style={styles.notificationText}>
-                  <Text style={[styles.notificationTitle, { color: colors.text }]}>
-                    {t('dailyTeachings')}
-                  </Text>
-                  <Text style={[styles.notificationDesc, { color: colors.textSecondary }]}>
-                    {notificationsOn
-                      ? t('receiveInsights')
-                      : t('getNotified')}
-                  </Text>
-                </View>
-                {isTogglingNotifications ? (
-                  <ActivityIndicator size="small" color={colors.accent} />
-                ) : (
-                  <Switch
-                    value={notificationsOn}
-                    onValueChange={handleNotificationToggle}
-                    trackColor={{ false: colors.border, true: colors.accent + '80' }}
-                    thumbColor={notificationsOn ? colors.accent : colors.textMuted}
-                  />
-                )}
-              </View>
-            </View>
+            {/* Notification toggle moved to Settings */}
 
             {/* Today's Snippets List */}
             <Text style={[styles.sectionLabel, { color: colors.text }]}>
@@ -265,9 +252,9 @@ export default function HomeScreen() {
                     <Clock color="#FFFFFF" size={24} />
                   </View>
                   <View style={styles.continueTextContainer}>
-                    <Text style={styles.continueLabel}>Continue where you left off</Text>
+                    <Text style={styles.continueLabel}>{t('continueWhereYouLeftOff')}</Text>
                     <Text style={styles.continueTitle}>
-                      {lastRead.bookName} {lastRead.chapter}
+                      {getLastReadBookName()} {lastRead.chapter}
                     </Text>
                   </View>
                   <ChevronRight color="#FFFFFF" size={24} />
@@ -289,9 +276,9 @@ export default function HomeScreen() {
                 <Clock color="#FFFFFF" size={24} />
               </View>
               <View style={styles.continueTextContainer}>
-                <Text style={styles.continueLabel}>Continue where you left off</Text>
+                <Text style={styles.continueLabel}>{t('continueWhereYouLeftOff')}</Text>
                 <Text style={styles.continueTitle}>
-                  {lastRead.bookName} {lastRead.chapter}
+                  {getLastReadBookName()} {lastRead.chapter}
                 </Text>
               </View>
               <ChevronRight color="#FFFFFF" size={24} />

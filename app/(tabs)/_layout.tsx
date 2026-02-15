@@ -2,9 +2,13 @@ import { Tabs } from "expo-router";
 import { Home, BookOpen, Settings } from "lucide-react-native";
 import React from "react";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export default function TabLayout() {
   const { colors } = useTheme();
+  const { language } = useLanguage();
+  const { t } = useTranslation();
 
   return (
     <Tabs
@@ -32,21 +36,21 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
+          title: t('home'),
           tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="read"
         options={{
-          title: "Read",
+          title: t('read'),
           tabBarIcon: ({ color, size }) => <BookOpen color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: "Settings",
+          title: t('settings'),
           tabBarIcon: ({ color, size }) => <Settings color={color} size={size} />,
         }}
       />

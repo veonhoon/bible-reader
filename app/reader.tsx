@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,32 +7,98 @@ import {
   TouchableOpacity,
   Pressable,
   ActivityIndicator,
+  LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, Bookmark, Highlighter, ChevronDown, RefreshCw } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { useBookmarks } from '@/contexts/BookmarksContext';
 import { useChapter } from '@/contexts/BibleContext';
 import { useReadingProgress } from '@/contexts/ReadingProgressContext';
 import { getBook, BIBLE_BOOKS } from '@/mocks/bibleData';
+import { KOREAN_BOOK_NAMES } from '@/constants/koreanBookNames';
+import { setCurrentBibleVersion } from '@/services/bibleApi';
 
 export default function ReaderScreen() {
   const { colors } = useTheme();
+  const { language } = useLanguage();
   const { addBookmark, isBookmarked, addHighlight, isHighlighted } = useBookmarks();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ bookId: string; chapter: string }>();
+  const params = useLocalSearchParams<{ bookId: string; chapter: string; highlightVerse?: string }>();
 
+  const isKorean = language === 'ko';
   const bookId = params.bookId || 'genesis';
   const chapter = parseInt(params.chapter || '1', 10);
+  const highlightVerse = params.highlightVerse ? parseInt(params.highlightVerse, 10) : null;
 
   const book = getBook(bookId);
   const { data: chapterData, isLoading, error, refetch } = useChapter(bookId, chapter);
   const { saveProgress } = useReadingProgress();
 
   const [selectedVerse, setSelectedVerse] = useState<number | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const versePositions = useRef<{ [key: number]: number }>({});
+  const hasScrolledToHighlight = useRef(false);
+
+  // Set Bible version based on language
+  useEffect(() => {
+    const version = isKorean ? 'KRV' : 'NIV';
+    setCurrentBibleVersion(version);
+  }, [isKorean]);
+
+  // Reset scroll tracking when chapter changes
+  useEffect(() => {
+    hasScrolledToHighlight.current = false;
+    versePositions.current = {};
+  }, [bookId, chapter]);
+
+  // Scroll to highlighted verse when data is loaded
+  useEffect(() => {
+    if (highlightVerse && chapterData && !hasScrolledToHighlight.current) {
+      // Small delay to ensure layout is complete
+      const timer = setTimeout(() => {
+        const yPosition = versePositions.current[highlightVerse];
+        if (yPosition !== undefined && scrollViewRef.current) {
+          scrollViewRef.current.scrollTo({ y: Math.max(0, yPosition - 100), animated: true });
+          hasScrolledToHighlight.current = true;
+        }
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightVerse, chapterData]);
+
+  // Track verse positions for scrolling
+  const handleVerseLayout = useCallback((verse: number, event: LayoutChangeEvent) => {
+    versePositions.current[verse] = event.nativeEvent.layout.y;
+  }, []);
+
+  // Get localized book name
+  const getBookName = (): string => {
+    if (!book) return '';
+    if (isKorean) {
+      const koreanData = KOREAN_BOOK_NAMES[bookId];
+      return koreanData?.korean || book.name;
+    }
+    return book.name;
+  };
+
+  // Translations
+  const t = {
+    bookNotFound: isKorean ? '책을 찾을 수 없습니다' : 'Book not found',
+    loading: isKorean ? '말씀을 불러오는 중...' : 'Loading scripture...',
+    unableToLoad: isKorean ? '장을 불러올 수 없습니다' : 'Unable to load chapter',
+    tryAgain: isKorean ? '다시 시도' : 'Try Again',
+    save: isKorean ? '저장' : 'Save',
+    saved: isKorean ? '저장됨' : 'Saved',
+    highlight: isKorean ? '강조' : 'Highlight',
+    highlighted: isKorean ? '강조됨' : 'Highlighted',
+    previous: isKorean ? '이전' : 'Previous',
+    next: isKorean ? '다음' : 'Next',
+  };
 
   useEffect(() => {
     if (bookId && chapter && !isLoading && !error) {
@@ -100,7 +166,7 @@ export default function ReaderScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Text style={[styles.errorText, { color: colors.text }]}>
-          Book not found
+          {t.bookNotFound}
         </Text>
       </View>
     );
@@ -126,7 +192,7 @@ export default function ReaderScreen() {
           testID="chapter-selector-button"
         >
           <Text style={[styles.headerTitle, { color: colors.text }]}>
-            {book.name} {chapter}
+            {getBookName()} {chapter}
           </Text>
           <ChevronDown color={colors.textMuted} size={18} />
         </TouchableOpacity>
@@ -138,13 +204,13 @@ export default function ReaderScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.accent} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            Loading scripture...
+            {t.loading}
           </Text>
         </View>
       ) : error ? (
         <View style={styles.errorContainer}>
           <Text style={[styles.errorTitle, { color: colors.text }]}>
-            Unable to load chapter
+            {t.unableToLoad}
           </Text>
           <Text style={[styles.errorMessage, { color: colors.textSecondary }]}>
             {error.message}
@@ -154,11 +220,12 @@ export default function ReaderScreen() {
             onPress={() => refetch()}
           >
             <RefreshCw color="#FFFFFF" size={18} />
-            <Text style={styles.retryButtonText}>Try Again</Text>
+            <Text style={styles.retryButtonText}>{t.tryAgain}</Text>
           </TouchableOpacity>
         </View>
       ) : chapterData ? (
         <ScrollView
+          ref={scrollViewRef}
           contentContainerStyle={[
             styles.scrollContent,
             { paddingBottom: insets.bottom + 100 },
@@ -173,21 +240,34 @@ export default function ReaderScreen() {
             const isVerseBookmarked = isBookmarked(bookId, chapter, verse.verse);
             const isVerseHighlighted = isHighlighted(bookId, chapter, verse.verse);
             const isSelected = selectedVerse === verse.verse;
+            const isFromSnippet = highlightVerse === verse.verse;
 
             return (
-              <View key={verse.verse}>
+              <View 
+                key={verse.verse}
+                onLayout={(e) => handleVerseLayout(verse.verse, e)}
+              >
                 <Pressable
                   onPress={() => handleVersePress(verse.verse)}
                   style={[
                     styles.verseContainer,
                     isVerseHighlighted && { backgroundColor: colors.highlight },
+                    isFromSnippet && styles.snippetHighlight,
                   ]}
                   testID={`verse-${verse.verse}`}
                 >
-                  <Text style={[styles.verseNumber, { color: colors.accent }]}>
+                  <Text style={[
+                    styles.verseNumber, 
+                    { color: isFromSnippet ? '#1e40af' : colors.accent },
+                    isFromSnippet && styles.snippetVerseNumber,
+                  ]}>
                     {verse.verse}
                   </Text>
-                  <Text style={[styles.verseText, { color: colors.text }]}>
+                  <Text style={[
+                    styles.verseText, 
+                    { color: isFromSnippet ? '#1e3a8a' : colors.text },
+                    isFromSnippet && styles.snippetVerseText,
+                  ]}>
                     {verse.text}
                     {isVerseBookmarked && (
                       <Text style={{ color: colors.gold }}> ●</Text>
@@ -211,7 +291,7 @@ export default function ReaderScreen() {
                         fill={isVerseBookmarked ? colors.gold : 'none'}
                       />
                       <Text style={[styles.actionText, { color: isVerseBookmarked ? colors.gold : colors.text }]}>
-                        {isVerseBookmarked ? 'Saved' : 'Save'}
+                        {isVerseBookmarked ? t.saved : t.save}
                       </Text>
                     </TouchableOpacity>
 
@@ -228,7 +308,7 @@ export default function ReaderScreen() {
                         size={18}
                       />
                       <Text style={[styles.actionText, { color: isVerseHighlighted ? colors.gold : colors.text }]}>
-                        {isVerseHighlighted ? 'Highlighted' : 'Highlight'}
+                        {isVerseHighlighted ? t.highlighted : t.highlight}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -246,7 +326,7 @@ export default function ReaderScreen() {
           testID="previous-chapter"
         >
           <ChevronLeft color={colors.text} size={20} />
-          <Text style={[styles.navButtonText, { color: colors.text }]}>Previous</Text>
+          <Text style={[styles.navButtonText, { color: colors.text }]}>{t.previous}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -254,7 +334,7 @@ export default function ReaderScreen() {
           onPress={goToNextChapter}
           testID="next-chapter"
         >
-          <Text style={[styles.navButtonText, { color: colors.text }]}>Next</Text>
+          <Text style={[styles.navButtonText, { color: colors.text }]}>{t.next}</Text>
           <ChevronLeft color={colors.text} size={20} style={{ transform: [{ rotate: '180deg' }] }} />
         </TouchableOpacity>
       </View>
@@ -346,6 +426,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     borderRadius: 4,
   },
+  snippetHighlight: {
+    backgroundColor: '#dbeafe',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    marginVertical: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#3b82f6',
+  },
   verseNumber: {
     fontSize: 12,
     fontWeight: '600' as const,
@@ -354,11 +443,18 @@ const styles = StyleSheet.create({
     width: 24,
     textAlign: 'right',
   },
+  snippetVerseNumber: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+  },
   verseText: {
     flex: 1,
     fontSize: 18,
     lineHeight: 30,
     fontFamily: 'Georgia',
+  },
+  snippetVerseText: {
+    fontWeight: '500' as const,
   },
   verseActions: {
     flexDirection: 'row',

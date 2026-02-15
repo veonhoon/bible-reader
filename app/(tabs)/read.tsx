@@ -11,31 +11,50 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ChevronRight, BookOpen } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { useReadingProgress } from '@/contexts/ReadingProgressContext';
 import { BIBLE_BOOKS } from '@/mocks/bibleData';
+import { KOREAN_BOOK_NAMES } from '@/constants/koreanBookNames';
+import { setCurrentBibleVersion } from '@/services/bibleApi';
 
 export default function ReadScreen() {
   const { colors } = useTheme();
+  const { language } = useLanguage();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { lastRead, isLoading } = useReadingProgress();
   const [activeTestament, setActiveTestament] = useState<'old' | 'new'>('old');
   const [hasNavigated, setHasNavigated] = useState(false);
 
-  // Auto-navigate to last read position when tab is opened
-  useEffect(() => {
-    if (!isLoading && lastRead && !hasNavigated) {
-      setHasNavigated(true);
-      router.push(`/reader?bookId=${lastRead.bookId}&chapter=${lastRead.chapter}`);
-    }
-  }, [isLoading, lastRead, hasNavigated]);
+  const isKorean = language === 'ko';
 
-  // Reset navigation flag when component unmounts
+  // Set Bible version based on language
   useEffect(() => {
-    return () => {
-      setHasNavigated(false);
-    };
-  }, []);
+    const version = isKorean ? 'KRV' : 'NIV';
+    setCurrentBibleVersion(version);
+  }, [isKorean]);
+
+  // Note: Auto-navigate to last read is handled by _layout.tsx on app launch.
+  // The Read tab just shows the book list with a "Continue Reading" card.
+
+  // Get localized book name
+  const getBookName = (bookId: string, englishName: string): string => {
+    if (isKorean) {
+      const koreanData = KOREAN_BOOK_NAMES[bookId];
+      return koreanData?.korean || englishName;
+    }
+    return englishName;
+  };
+
+  // Get localized last read book name
+  const getLastReadBookName = (): string => {
+    if (!lastRead) return '';
+    if (isKorean) {
+      const koreanData = KOREAN_BOOK_NAMES[lastRead.bookId];
+      return koreanData?.korean || lastRead.bookName;
+    }
+    return lastRead.bookName;
+  };
 
   const oldTestamentBooks = BIBLE_BOOKS.filter(b => b.testament === 'old');
   const newTestamentBooks = BIBLE_BOOKS.filter(b => b.testament === 'new');
@@ -45,6 +64,15 @@ export default function ReadScreen() {
   };
 
   const displayedBooks = activeTestament === 'old' ? oldTestamentBooks : newTestamentBooks;
+
+  // Translations
+  const t = {
+    bible: isKorean ? '성경' : 'Bible',
+    continueReading: isKorean ? '계속 읽기' : 'Continue Reading',
+    oldTestament: isKorean ? '구약' : 'Old Testament',
+    newTestament: isKorean ? '신약' : 'New Testament',
+    chapters: isKorean ? '장' : 'chapters',
+  };
 
   // Show loading while checking for last read position
   if (isLoading) {
@@ -59,7 +87,7 @@ export default function ReadScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Bible</Text>
+        <Text style={[styles.title, { color: colors.text }]}>{t.bible}</Text>
 
         {/* Quick resume button if there's a last read position */}
         {lastRead && (
@@ -69,8 +97,8 @@ export default function ReadScreen() {
           >
             <BookOpen color="#FFFFFF" size={20} />
             <View style={styles.resumeTextContainer}>
-              <Text style={styles.resumeLabel}>Continue Reading</Text>
-              <Text style={styles.resumeTitle}>{lastRead.bookName} {lastRead.chapter}</Text>
+              <Text style={styles.resumeLabel}>{t.continueReading}</Text>
+              <Text style={styles.resumeTitle}>{getLastReadBookName()} {lastRead.chapter}</Text>
             </View>
             <ChevronRight color="#FFFFFF" size={20} />
           </TouchableOpacity>
@@ -91,7 +119,7 @@ export default function ReadScreen() {
                 { color: activeTestament === 'old' ? colors.text : colors.textMuted },
               ]}
             >
-              Old Testament
+              {t.oldTestament}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -108,36 +136,31 @@ export default function ReadScreen() {
                 { color: activeTestament === 'new' ? colors.text : colors.textMuted },
               ]}
             >
-              New Testament
+              {t.newTestament}
             </Text>
           </TouchableOpacity>
         </View>
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + 100 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        {displayedBooks.map((book, index) => (
+        {displayedBooks.map((book) => (
           <TouchableOpacity
             key={book.id}
-            style={[
-              styles.bookItem,
-              {
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-                borderBottomWidth: index === displayedBooks.length - 1 ? 1 : 0,
-              },
-            ]}
+            style={[styles.bookRow, { borderBottomColor: colors.border }]}
             onPress={() => handleBookPress(book.id)}
-            testID={`book-${book.id}`}
           >
-            <View style={styles.bookInfo}>
+            <View>
               <Text style={[styles.bookName, { color: colors.text }]}>
-                {book.name}
+                {getBookName(book.id, book.name)}
               </Text>
-              <Text style={[styles.bookChapters, { color: colors.textSecondary }]}>
-                {book.chapters} chapters
+              <Text style={[styles.chapterCount, { color: colors.textMuted }]}>
+                {book.chapters} {t.chapters}
               </Text>
             </View>
             <ChevronRight color={colors.textMuted} size={20} />
@@ -161,9 +184,8 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700' as const,
-    letterSpacing: -0.5,
+    fontSize: 32,
+    fontWeight: '700',
     marginBottom: 16,
   },
   resumeCard: {
@@ -172,20 +194,19 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginBottom: 16,
-    gap: 12,
   },
   resumeTextContainer: {
     flex: 1,
+    marginLeft: 12,
   },
   resumeLabel: {
     fontSize: 12,
-    fontWeight: '600' as const,
     color: 'rgba(255,255,255,0.8)',
     marginBottom: 2,
   },
   resumeTitle: {
     fontSize: 16,
-    fontWeight: '600' as const,
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   tabContainer: {
@@ -201,30 +222,24 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 14,
-    fontWeight: '600' as const,
+    fontWeight: '600',
   },
   scrollContent: {
     paddingHorizontal: 20,
   },
-  bookItem: {
+  bookRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    marginTop: -1,
-  },
-  bookInfo: {
-    flex: 1,
+    borderBottomWidth: 1,
   },
   bookName: {
-    fontSize: 16,
-    fontWeight: '500' as const,
+    fontSize: 17,
+    fontWeight: '500',
     marginBottom: 2,
   },
-  bookChapters: {
+  chapterCount: {
     fontSize: 13,
   },
 });

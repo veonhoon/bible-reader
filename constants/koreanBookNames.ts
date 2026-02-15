@@ -27,6 +27,7 @@ export const KOREAN_BOOK_NAMES: Record<string, { korean: string; number: number 
   proverbs: { korean: '잠언', number: 20 },
   ecclesiastes: { korean: '전도서', number: 21 },
   song: { korean: '아가', number: 22 },
+  songofsolomon: { korean: '아가', number: 22 },
   isaiah: { korean: '이사야', number: 23 },
   jeremiah: { korean: '예레미야', number: 24 },
   lamentations: { korean: '예레미야애가', number: 25 },

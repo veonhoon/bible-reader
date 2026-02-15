@@ -58,14 +58,12 @@ export default function TermsOfUseScreen() {
           You must be at least 13 years old to use this app. If you are under 18, you must have parental or guardian consent.
         </Text>
 
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>4. Subscriptions and Payments</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>4. Free Service</Text>
         <Text style={[styles.paragraph, { color: colors.text }]}>
-          • Basic Bible reading features are free{'\n'}
-          • Premium features require a paid subscription{'\n'}
-          • Subscriptions are billed through Apple App Store or Google Play Store{'\n'}
-          • Subscriptions automatically renew unless cancelled{'\n'}
-          • You may cancel anytime through your device's subscription settings{'\n'}
-          • Free trials are charged after the trial period unless you cancel
+          • Bible Reader is completely free to use{'\n'}
+          • All features are available at no cost{'\n'}
+          • No subscription or payment is required{'\n'}
+          • We may offer additional features in the future
         </Text>
 
         <Text style={[styles.sectionTitle, { color: colors.text }]}>5. User Conduct</Text>

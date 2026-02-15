@@ -11,7 +11,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { X } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { getBook } from '@/mocks/bibleData';
+import { KOREAN_BOOK_NAMES } from '@/constants/koreanBookNames';
 
 const { width } = Dimensions.get('window');
 const COLUMNS = 5;
@@ -19,12 +21,24 @@ const BUTTON_SIZE = (width - 80) / COLUMNS;
 
 export default function ChapterSelectorScreen() {
   const { colors } = useTheme();
+  const { language } = useLanguage();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ bookId: string }>();
 
+  const isKorean = language === 'ko';
   const bookId = params.bookId || 'genesis';
   const book = getBook(bookId);
+
+  // Get localized book name
+  const getBookName = (): string => {
+    if (!book) return '';
+    if (isKorean) {
+      const koreanData = KOREAN_BOOK_NAMES[bookId];
+      return koreanData?.korean || book.name;
+    }
+    return book.name;
+  };
 
   const handleChapterSelect = (chapter: number) => {
     router.replace({
@@ -37,7 +51,7 @@ export default function ChapterSelectorScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Text style={[styles.errorText, { color: colors.text }]}>
-          Book not found
+          {isKorean ? '책을 찾을 수 없습니다' : 'Book not found'}
         </Text>
       </View>
     );
@@ -50,7 +64,7 @@ export default function ChapterSelectorScreen() {
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <View style={styles.headerSpacer} />
         <Text style={[styles.headerTitle, { color: colors.text }]}>
-          {book.name}
+          {getBookName()}
         </Text>
         <TouchableOpacity
           style={styles.closeButton}
@@ -69,7 +83,7 @@ export default function ChapterSelectorScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          Select a chapter
+          {isKorean ? '장을 선택하세요' : 'Select a chapter'}
         </Text>
 
         <View style={styles.chaptersGrid}>
@@ -81,9 +95,8 @@ export default function ChapterSelectorScreen() {
                 { backgroundColor: colors.card, borderColor: colors.border },
               ]}
               onPress={() => handleChapterSelect(chapter)}
-              testID={`chapter-${chapter}`}
             >
-              <Text style={[styles.chapterNumber, { color: colors.text }]}>
+              <Text style={[styles.chapterText, { color: colors.text }]}>
                 {chapter}
               </Text>
             </TouchableOpacity>
@@ -102,48 +115,51 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
   },
   headerSpacer: {
     width: 40,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600' as const,
+    fontWeight: '600',
   },
   closeButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 100,
   },
   scrollContent: {
     paddingHorizontal: 20,
   },
   subtitle: {
     fontSize: 15,
+    marginBottom: 20,
     textAlign: 'center',
-    marginBottom: 24,
   },
   chaptersGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'flex-start',
     gap: 10,
-    justifyContent: 'center',
   },
   chapterButton: {
     width: BUTTON_SIZE,
     height: BUTTON_SIZE,
     borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
   },
-  chapterNumber: {
+  chapterText: {
     fontSize: 18,
-    fontWeight: '500' as const,
-  },
-  errorText: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginTop: 100,
+    fontWeight: '500',
   },
 });

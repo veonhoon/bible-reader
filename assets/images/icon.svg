@@ -1,0 +1,25 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1024" height="1024" rx="224" fill="#F5F5F5"/>
+  
+  <!-- Book/Bible shape -->
+  <g transform="translate(262, 192)">
+    <!-- Book cover -->
+    <path d="M0 80C0 35.8172 35.8172 0 80 0H420C453.137 0 480 26.8629 480 60V580C480 613.137 453.137 640 420 640H80C35.8172 640 0 604.183 0 560V80Z" fill="#2D2D2D"/>
+    
+    <!-- Book spine highlight -->
+    <path d="M0 80C0 35.8172 35.8172 0 80 0H100V640H80C35.8172 640 0 604.183 0 560V80Z" fill="#1A1A1A"/>
+    
+    <!-- Pages -->
+    <rect x="40" y="40" width="400" height="560" rx="20" fill="#FAFAFA"/>
+    
+    <!-- Cross -->
+    <rect x="210" y="140" width="40" height="280" rx="8" fill="#2D2D2D"/>
+    <rect x="140" y="220" width="180" height="40" rx="8" fill="#2D2D2D"/>
+    
+    <!-- Page lines -->
+    <rect x="100" y="480" width="260" height="8" rx="4" fill="#E0E0E0"/>
+    <rect x="100" y="510" width="200" height="8" rx="4" fill="#E0E0E0"/>
+    <rect x="100" y="540" width="240" height="8" rx="4" fill="#E0E0E0"/>
+  </g>
+</svg>
