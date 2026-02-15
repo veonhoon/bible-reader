@@ -24,7 +24,6 @@ export default function ReadScreen() {
   const router = useRouter();
   const { lastRead, isLoading } = useReadingProgress();
   const [activeTestament, setActiveTestament] = useState<'old' | 'new'>('old');
-  const [hasNavigated, setHasNavigated] = useState(false);
 
   const isKorean = language === 'ko';
 
