@@ -19,10 +19,8 @@
       "usesAppleSignIn": true,
       "infoPlist": {
         "UIBackgroundModes": [
-          "audio",
           "remote-notification"
         ],
-        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
