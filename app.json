@@ -2,7 +2,7 @@
   "expo": {
     "name": "Bible Reader",
     "slug": "calm-bible-reader",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "bible-reader",
@@ -33,12 +33,6 @@
       ],
       "expo-font",
       "expo-web-browser",
-      [
-        "expo-av",
-        {
-          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone"
-        }
-      ],
       "expo-notifications",
       "expo-apple-authentication"
     ],
