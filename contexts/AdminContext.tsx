@@ -1,9 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import { useState, useEffect, useCallback } from 'react';
+import { sha256 } from '@/utils/sha256';
 
 const ADMIN_STORAGE_KEY = 'bible_app_admin';
-const ADMIN_PASSWORD = 'admin123';
+const ADMIN_PASSWORD_SHA256 = '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9';
 
 export const [AdminProvider, useAdmin] = createContextHook(() => {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -26,7 +27,7 @@ export const [AdminProvider, useAdmin] = createContextHook(() => {
   }, []);
 
   const login = useCallback(async (password: string) => {
-    if (password === ADMIN_PASSWORD) {
+    if (typeof password === 'string' && sha256(password) === ADMIN_PASSWORD_SHA256) {
       setIsAdmin(true);
       try {
         await AsyncStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(true));

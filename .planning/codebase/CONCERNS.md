@@ -17,14 +17,14 @@
 - Fix approach: Add Jest/React Native Testing Library, start with critical paths (auth, notifications, payments)
 
 **Deprecated Admin Panel in Mobile App:**
-- Issue: Full admin panel implemented in mobile app (`/Users/deon/Desktop/calm-bible-reader/app/admin.tsx`, 795 lines)
-- Files: `/Users/deon/Desktop/calm-bible-reader/app/admin.tsx`
+- Issue: Full admin panel implemented in mobile app (`app/admin.tsx`, 795 lines)
+- Files: `app/admin.tsx`
 - Impact: Duplicate code with web admin, increases bundle size, maintenance burden
 - Fix approach: Remove mobile admin panel, use web admin only (already deployed at bibt-49dc8.web.app)
 
 **Legacy Custom Scriptures System:**
 - Issue: Custom scriptures context and features appear unused with new snippet-based system
-- Files: `/Users/deon/Desktop/calm-bible-reader/contexts/CustomScripturesContext.tsx` (287 lines), `/Users/deon/Desktop/calm-bible-reader/app/import-scriptures.tsx` (390 lines)
+- Files: `contexts/CustomScripturesContext.tsx` (287 lines), `app/import-scriptures.tsx` (390 lines)
 - Impact: Dead code bloat, confusion about which system to use
 - Fix approach: Audit usage, remove if snippet system fully replaced it
 
@@ -32,20 +32,20 @@
 
 **OAuth Sign-In Broken in Development:**
 - Symptoms: Google/Apple sign-in fail with error "requires development build"
-- Files: `/Users/deon/Desktop/calm-bible-reader/contexts/AuthContext.tsx` (lines 202-205, 224)
+- Files: `contexts/AuthContext.tsx` (lines 202-205, 224)
 - Trigger: Using Expo Go instead of development build
 - Workaround: Use email sign-in or create dev build with expo-dev-client
 
 **Firebase Initialization Race Condition:**
 - Symptoms: Potential double initialization of Firebase Auth
-- Files: `/Users/deon/Desktop/calm-bible-reader/config/firebase.ts` (lines 41-53)
+- Files: `config/firebase.ts` (lines 41-53)
 - Trigger: Complex initialization logic checking getApps().length twice
 - Workaround: Currently handled with try/catch, but fragile
 - Fix approach: Simplify to single initialization path
 
 **Scripture Reference Parsing Fragility:**
 - Symptoms: Fails on non-standard reference formats
-- Files: `/Users/deon/Desktop/calm-bible-reader/app/snippet/[id].tsx` (lines 25-48)
+- Files: `app/snippet/[id].tsx` (lines 25-48)
 - Trigger: References like "Psalms 23" vs "Psalm 23", multi-chapter ranges
 - Current mitigation: Regex matching with normalization
 - Fix approach: Use a proper reference parsing library or normalize all references at input
@@ -54,25 +54,25 @@
 
 **Environment Variables Exposure:**
 - Risk: Firebase config exposed in client bundle
-- Files: `/Users/deon/Desktop/calm-bible-reader/config/firebase.ts`, `/Users/deon/Desktop/calm-bible-reader/.env`
+- Files: `config/firebase.ts`, `.env`
 - Current mitigation: Firebase security rules (assumed), EXPO_PUBLIC_ prefix intentional
 - Recommendations: Audit Firestore security rules, ensure sensitive operations use Cloud Functions
 
 **No Input Validation:**
 - Risk: User-provided data (scriptures, references) stored without validation
-- Files: `/Users/deon/Desktop/calm-bible-reader/services/scripturesService.ts`, `/Users/deon/Desktop/calm-bible-reader/admin/src/components/SnippetEditor.tsx`
+- Files: `services/scripturesService.ts`, `admin/src/components/SnippetEditor.tsx`
 - Current mitigation: None detected
 - Recommendations: Add Zod or Yup validation schemas, sanitize HTML/markdown input
 
 **Admin Access Control:**
 - Risk: Admin status checked client-side only
-- Files: `/Users/deon/Desktop/calm-bible-reader/contexts/AdminContext.tsx`
+- Files: `contexts/AdminContext.tsx`
 - Current mitigation: Simple password check in AsyncStorage
 - Recommendations: Move admin operations to Cloud Functions with proper auth checks
 
 **Push Token Storage:**
 - Risk: Push tokens stored in Firestore without user consent tracking
-- Files: `/Users/deon/Desktop/calm-bible-reader/services/notificationScheduler.ts` (lines 340-365)
+- Files: `services/notificationScheduler.ts` (lines 340-365)
 - Current mitigation: User must enable notifications
 - Recommendations: Add explicit consent UI, allow token deletion
 
@@ -80,19 +80,19 @@
 
 **Notification Scheduling Complexity:**
 - Problem: Schedules 2 weeks of notifications in single synchronous operation
-- Files: `/Users/deon/Desktop/calm-bible-reader/services/notificationScheduler.ts` (lines 198-305)
+- Files: `services/notificationScheduler.ts` (lines 198-305)
 - Cause: Nested loops (weeks × days × times × snippets), Firebase reads for every schedule
 - Improvement path: Move to background task, batch Firebase reads, reduce scheduling window to 1 week
 
 **Bible Chapter Caching:**
 - Problem: Each chapter cached separately, no prefetching
-- Files: `/Users/deon/Desktop/calm-bible-reader/services/bibleApi.ts` (lines 103-191)
+- Files: `services/bibleApi.ts` (lines 103-191)
 - Cause: Individual chapter fetches, 30-day expiry
 - Improvement path: Prefetch next chapter, batch download for offline mode, compress cached data
 
 **Large Admin Screen:**
 - Problem: 795-line component with multiple responsibilities
-- Files: `/Users/deon/Desktop/calm-bible-reader/app/admin.tsx`
+- Files: `app/admin.tsx`
 - Cause: Scripture import, notification scheduling, user management in one file
 - Improvement path: Split into separate screens/components, use React Query for data fetching
 
@@ -105,25 +105,25 @@
 ## Fragile Areas
 
 **Premium Status Logic:**
-- Files: `/Users/deon/Desktop/calm-bible-reader/contexts/SubscriptionContext.tsx` (lines 120-125), `/Users/deon/Desktop/calm-bible-reader/services/notificationScheduler.ts` (lines 36-67)
+- Files: `contexts/SubscriptionContext.tsx` (lines 120-125), `services/notificationScheduler.ts` (lines 36-67)
 - Why fragile: Premium status sourced from 3 places (local subscription, Firestore isPremium, trial)
 - Safe modification: Always test all 3 paths, use SubscriptionContext.isSubscribed abstraction
 - Test coverage: None
 
 **Notification Scheduling:**
-- Files: `/Users/deon/Desktop/calm-bible-reader/services/notificationScheduler.ts`
+- Files: `services/notificationScheduler.ts`
 - Why fragile: Complex scheduling logic, timezone assumptions, quiet hours, snippet rotation
 - Safe modification: Never modify without testing on real device, verify snippet index rotation
 - Test coverage: None
 
 **Firebase Conditional Initialization:**
-- Files: `/Users/deon/Desktop/calm-bible-reader/config/firebase.ts`, all files checking `isFirebaseConfigured`
+- Files: `config/firebase.ts`, all files checking `isFirebaseConfigured`
 - Why fragile: Many null checks, app should work offline or without Firebase
 - Safe modification: Always check `isFirebaseConfigured` before using `db` or `auth`
 - Test coverage: None
 
 **Scripture Reference Parsing:**
-- Files: `/Users/deon/Desktop/calm-bible-reader/app/snippet/[id].tsx` (lines 25-48)
+- Files: `app/snippet/[id].tsx` (lines 25-48)
 - Why fragile: Regex-based parsing, special case for Psalms
 - Safe modification: Add test cases before changing regex
 - Test coverage: None
@@ -188,31 +188,31 @@
 
 **Authentication Flow:**
 - What's not tested: Email/Google/Apple sign-in, token refresh, logout
-- Files: `/Users/deon/Desktop/calm-bible-reader/contexts/AuthContext.tsx`
+- Files: `contexts/AuthContext.tsx`
 - Risk: Auth bugs only discovered in production
 - Priority: High
 
 **Notification Scheduling:**
 - What's not tested: Quiet hours logic, snippet rotation, timezone handling, premium gating
-- Files: `/Users/deon/Desktop/calm-bible-reader/services/notificationScheduler.ts`
+- Files: `services/notificationScheduler.ts`
 - Risk: Users don't receive notifications or get wrong content
 - Priority: High
 
 **Subscription/Premium Logic:**
 - What's not tested: Trial start/expiry, subscription purchase, premium status checks
-- Files: `/Users/deon/Desktop/calm-bible-reader/contexts/SubscriptionContext.tsx`
+- Files: `contexts/SubscriptionContext.tsx`
 - Risk: Paywall broken or premium users blocked
 - Priority: High
 
 **Bible API Integration:**
 - What's not tested: Chapter fetching, caching, HTML stripping, error handling
-- Files: `/Users/deon/Desktop/calm-bible-reader/services/bibleApi.ts`
+- Files: `services/bibleApi.ts`
 - Risk: Bible content missing or malformed
 - Priority: Medium
 
 **Scripture Reference Parsing:**
 - What's not tested: All reference formats, edge cases
-- Files: `/Users/deon/Desktop/calm-bible-reader/app/snippet/[id].tsx`
+- Files: `app/snippet/[id].tsx`
 - Risk: Links to wrong chapter or fail to parse
 - Priority: Medium
 
